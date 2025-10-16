@@ -1,0 +1,41 @@
+# CMake build directories
+cmake-build-debug/
+cmake-build-debug-coverage/
+
+# Compiler output
+*.o
+*.exe
+*.out
+*.a
+*.so
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test coverage reports
+htmlcov/
+*.gcda
+*.gcno
+*.info
+
+# Build artifacts
+build/
+bin/
+lib/
+obj/
+
+# Environment variables
+.env
+
+# Logs
+logs/
+*.log
+
+# OS specific files
+.DS_Store
+Thumbs.db

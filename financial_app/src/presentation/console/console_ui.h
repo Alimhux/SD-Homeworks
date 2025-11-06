@@ -296,18 +296,18 @@ class ConsoleUI {
     std::cout << "\n--- Список счетов ---\n";
 
     const int idWidth = 22;
-    const int nameWidth = 25;
+    const int nameWidth = 12;
     const int balanceWidth =
-        14;
+        15;
     const int statusWidth = 8;
 
     // Заголовки
     std::cout << std::left << std::setw(idWidth) << "ID" << std::setw(nameWidth)
-              << "Название"
+              << " Название    "
               << std::right
-              << std::setw(balanceWidth) << "Баланс"
+              << std::setw(balanceWidth) << "     Баланс" << "        "
               << std::left
-              << std::setw(statusWidth) << " Статус"
+              << std::setw(statusWidth) << "  Статус"
               << "\n";
 
     // Разделитель
@@ -322,9 +322,9 @@ class ConsoleUI {
                     << account->getCurrency();
       std::string formattedBalance = balanceStream.str();
 
-      std::cout << std::left << std::setw(idWidth) << account->getId()
-                << std::setw(nameWidth) << account->getName() << std::right
-                << std::setw(balanceWidth) << formattedBalance << std::left
+      std::cout << std::left << std::setw(idWidth) << account->getId() << "    "
+                << std::setw(nameWidth) << account->getName()
+                << std::setw(balanceWidth) << formattedBalance
                 << " "  // Небольшой отступ перед статусом
                 << std::setw(statusWidth - 1)  // -1 из-за отступа " "
                 << (account->getIsActive() ? "Активен" : "Неактивен") << "\n";

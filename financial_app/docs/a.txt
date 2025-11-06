@@ -1,0 +1,2303 @@
+main:
+
+#include <iostream>
+#include <exception>
+#include "infrastructure/di/di_container.h"
+#include "presentation/console/console_ui.h"
+#include "application/decorators/command_decorators.h"
+
+using namespace financial::infrastructure;
+using namespace financial::presentation;
+using namespace financial::application;
+
+int main() {
+  try {
+    // Инициализация системы логирования
+    LoggingDecorator::openLogFile("financial_app.log");
+
+    // Конфигурация DI контейнера
+    std::cout << "Инициализация системы...\n";
+    ServiceConfigurator::configureServices(true); // с кэшированием
+
+    // Запуск консольного интерфейса
+    ConsoleUI ui{};
+    ui.run();
+
+    // Вывод статистики производительности перед выходом
+    auto& stats = PerformanceStatistics::getInstance();
+    std::string perfReport = stats.generateReport();
+    if (!perfReport.empty()) {
+      std::cout << "\n" << perfReport;
+    }
+
+    // Закрытие логов
+    LoggingDecorator::closeLogFile();
+
+  } catch (const std::exception& e) {
+    std::cerr << "Критическая ошибка: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Неизвестная критическая ошибка!" << std::endl;
+    return 2;
+  }
+
+  return 0;
+}
+
+#pragma once
+
+#include <iostream>
+#include <iomanip>
+#include <string>
+#include <vector>
+#include <limits>
+#include "application/facades/account_facade.h"
+#include "application/facades/operation_facade.h"
+#include "application/facades/analytics_facade.h"
+#include "infrastructure/di/di_container.h"
+
+namespace financial::presentation {
+
+using namespace financial::application;
+
+// Console UI class following Controller pattern
+class ConsoleUI {
+private:
+    std::shared_ptr<AccountFacade> accountFacade_;
+    std::shared_ptr<OperationFacade> operationFacade_;
+    std::shared_ptr<CategoryFacade> categoryFacade_;
+    std::shared_ptr<AnalyticsFacade> analyticsFacade_;
+
+    bool running_ = true;
+
+public:
+    ConsoleUI() {
+        accountFacade_ = std::make_shared<AccountFacade>();
+        operationFacade_ = std::make_shared<OperationFacade>();
+        categoryFacade_ = std::make_shared<CategoryFacade>();
+        analyticsFacade_ = std::make_shared<AnalyticsFacade>();
+    }
+
+    void run() {
+        displayWelcome();
+
+        while (running_) {
+            displayMainMenu();
+            int choice = getUserChoice(1, 9);
+
+            switch (choice) {
+                case 1: accountMenu(); break;
+                case 2: categoryMenu(); break;
+                case 3: operationMenu(); break;
+                case 4: analyticsMenu(); break;
+                case 5: importExportMenu(); break;
+                case 6: demonstratePatterns(); break;
+                case 7: runQuickDemo(); break;
+                case 8: displayHelp(); break;
+                case 9: running_ = false; break;
+            }
+        }
+
+        displayGoodbye();
+    }
+
+private:
+    void displayWelcome() {
+        std::cout << "\n";
+        std::cout << "╔════════════════════════════════════════════════════╗\n";
+        std::cout << "║         ВШЭ-БАНК: СИСТЕМА УЧЕТА ФИНАНСОВ           ║\n";
+        std::cout << "╚════════════════════════════════════════════════════╝\n";
+    }
+
+    void displayMainMenu() {
+        std::cout << "\n=== ГЛАВНОЕ МЕНЮ ===\n";
+        std::cout << "1. Управление счетами\n";
+        std::cout << "2. Управление категориями\n";
+        std::cout << "3. Управление операциями\n";
+        std::cout << "4. Аналитика и отчеты\n";
+        std::cout << "5. Импорт/Экспорт данных\n";
+        std::cout << "6. Демонстрация паттернов\n";
+        std::cout << "7. Быстрая демонстрация\n";
+        std::cout << "8. Справка\n";
+        std::cout << "9. Выход\n";
+    }
+
+    void accountMenu() {
+        bool inMenu = true;
+        while (inMenu) {
+            std::cout << "\n=== УПРАВЛЕНИЕ СЧЕТАМИ ===\n";
+            std::cout << "1. Создать счет\n";
+            std::cout << "2. Список счетов\n";
+            std::cout << "3. Пополнить счет\n";
+            std::cout << "4. Снять со счета\n";
+            std::cout << "5. Перевод между счетами\n";
+            std::cout << "6. Удалить счет\n";
+            std::cout << "7. Назад\n";
+
+            int choice = getUserChoice(1, 7);
+
+            switch (choice) {
+                case 1: createAccount(); break;
+                case 2: listAccounts(); break;
+                case 3: depositToAccount(); break;
+                case 4: withdrawFromAccount(); break;
+                case 5: transferBetweenAccounts(); break;
+                case 6: deleteAccount(); break;
+                case 7: inMenu = false; break;
+            }
+        }
+    }
+
+    void categoryMenu() {
+        bool inMenu = true;
+        while (inMenu) {
+            std::cout << "\n=== УПРАВЛЕНИЕ КАТЕГОРИЯМИ ===\n";
+            std::cout << "1. Создать категорию\n";
+            std::cout << "2. Список категорий\n";
+            std::cout << "3. Создать стандартные категории\n";
+            std::cout << "4. Удалить категорию\n";
+            std::cout << "5. Назад\n";
+
+            int choice = getUserChoice(1, 5);
+
+            switch (choice) {
+                case 1: createCategory(); break;
+                case 2: listCategories(); break;
+                case 3: createDefaultCategories(); break;
+                case 4: deleteCategory(); break;
+                case 5: inMenu = false; break;
+            }
+        }
+    }
+
+    void operationMenu() {
+        bool inMenu = true;
+        while (inMenu) {
+            std::cout << "\n=== УПРАВЛЕНИЕ ОПЕРАЦИЯМИ ===\n";
+            std::cout << "1. Добавить доход\n";
+            std::cout << "2. Добавить расход\n";
+            std::cout << "3. Список операций\n";
+            std::cout << "4. Операции за сегодня\n";
+            std::cout << "5. Операции за месяц\n";
+            std::cout << "6. Удалить операцию\n";
+            std::cout << "7. Назад\n";
+
+            int choice = getUserChoice(1, 7);
+
+            switch (choice) {
+                case 1: addIncome(); break;
+                case 2: addExpense(); break;
+                case 3: listOperations(); break;
+                case 4: showTodayOperations(); break;
+                case 5: showMonthOperations(); break;
+                case 6: deleteOperation(); break;
+                case 7: inMenu = false; break;
+            }
+        }
+    }
+
+    void analyticsMenu() {
+        bool inMenu = true;
+        while (inMenu) {
+            std::cout << "\n=== АНАЛИТИКА И ОТЧЕТЫ ===\n";
+            std::cout << "1. Отчет за месяц\n";
+            std::cout << "2. Отчет за год\n";
+            std::cout << "3. Топ категорий доходов\n";
+            std::cout << "4. Топ категорий расходов\n";
+            std::cout << "5. Проверить балансы\n";
+            std::cout << "6. Статистика производительности\n";
+            std::cout << "7. Назад\n";
+
+            int choice = getUserChoice(1, 7);
+
+            switch (choice) {
+                case 1: showMonthlyReport(); break;
+                case 2: showYearlyReport(); break;
+                case 3: showTopIncomeCategories(); break;
+                case 4: showTopExpenseCategories(); break;
+                case 5: checkBalances(); break;
+                case 6: showPerformanceStats(); break;
+                case 7: inMenu = false; break;
+            }
+        }
+    }
+
+    void importExportMenu() {
+        bool inMenu = true;
+        while (inMenu) {
+            std::cout << "\n=== ИМПОРТ/ЭКСПОРТ ДАННЫХ ===\n";
+            std::cout << "1. Экспорт в CSV\n";
+            std::cout << "2. Экспорт в JSON\n";
+            std::cout << "3. Импорт из CSV\n";
+            std::cout << "4. Импорт из JSON\n";
+            std::cout << "5. Назад\n";
+
+            int choice = getUserChoice(1, 5);
+
+            switch (choice) {
+                case 1: exportToCSV(); break;
+                case 2: exportToJSON(); break;
+                case 3: importFromCSV(); break;
+                case 4: importFromJSON(); break;
+                case 5: inMenu = false; break;
+            }
+        }
+    }
+
+    // Implementation of menu actions
+    void createAccount() {
+        std::cout << "\n--- Создание счета ---\n";
+        std::string name = getUserInput("Введите название счета: ");
+        double balance = getUserDouble("Начальный баланс (0 для пустого): ");
+
+        try {
+            auto account = accountFacade_->createAccount(name, balance);
+            std::cout << "✓ Счет создан успешно! ID: " << account->getId() << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void listAccounts() {
+        auto accounts = accountFacade_->getAllAccounts();
+
+        if (accounts.empty()) {
+            std::cout << "Нет созданных счетов.\n";
+            return;
+        }
+
+        std::cout << "\n--- Список счетов ---\n";
+        std::cout << std::left << std::setw(15) << "ID"
+                  << std::setw(25) << "Название"
+                  << std::setw(15) << "Баланс"
+                  << std::setw(10) << "Статус" << "\n";
+        std::cout << std::string(65, '-') << "\n";
+
+        for (const auto& account : accounts) {
+            std::cout << std::left << std::setw(15) << account->getId().substr(0, 14)
+                      << std::setw(25) << account->getName()
+                      << std::setw(15) << (std::to_string(account->getBalance().getAmount()) + " " + account->getCurrency())
+                      << std::setw(10) << (account->getIsActive() ? "Активен" : "Неактивен")
+                      << "\n";
+        }
+    }
+
+    void createCategory() {
+        std::cout << "\n--- Создание категории ---\n";
+        std::cout << "Тип категории:\n";
+        std::cout << "1. Доход\n";
+        std::cout << "2. Расход\n";
+
+        int typeChoice = getUserChoice(1, 2);
+        CategoryType type = (typeChoice == 1) ? CategoryType::INCOME : CategoryType::EXPENSE;
+
+        std::string name = getUserInput("Название категории: ");
+        std::string description = getUserInput("Описание (опционально): ");
+
+        try {
+            auto category = categoryFacade_->createCategory(type, name, description);
+            std::cout << "✓ Категория создана успешно! ID: " << category->getId() << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void createDefaultCategories() {
+        try {
+            categoryFacade_->createDefaultCategories();
+            std::cout << "✓ Стандартные категории созданы успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void addIncome() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета: ");
+
+        listCategories(CategoryType::INCOME);
+        std::string categoryId = getUserInput("\nВведите ID категории: ");
+
+        double amount = getUserDouble("Сумма дохода: ");
+        std::string description = getUserInput("Описание: ");
+
+        try {
+            auto operation = operationFacade_->addIncome(accountId, amount, categoryId, description);
+            std::cout << "✓ Доход добавлен успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void addExpense() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета: ");
+
+        listCategories(CategoryType::EXPENSE);
+        std::string categoryId = getUserInput("\nВведите ID категории: ");
+
+        double amount = getUserDouble("Сумма расхода: ");
+        std::string description = getUserInput("Описание: ");
+
+        try {
+            auto operation = operationFacade_->addExpense(accountId, amount, categoryId, description);
+            std::cout << "✓ Расход добавлен успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void showMonthlyReport() {
+        auto report = analyticsFacade_->generateMonthlyReport();
+        std::cout << "\n" << report << "\n";
+    }
+
+    void showPerformanceStats() {
+        auto& stats = PerformanceStatistics::getInstance();
+        std::cout << "\n" << stats.generateReport() << "\n";
+    }
+
+    void demonstratePatterns() {
+        std::cout << "\n=== ДЕМОНСТРАЦИЯ ПАТТЕРНОВ ===\n\n";
+
+        std::cout << "Реализованные паттерны проектирования:\n";
+        std::cout << "---------------------------------------\n\n";
+
+        std::cout << "1. FACTORY METHOD - EntityFactory\n";
+        std::cout << "   Централизованное создание сущностей с валидацией\n\n";
+
+        std::cout << "2. SINGLETON - DIContainer\n";
+        std::cout << "   Управление зависимостями и конфигурацией сервисов\n\n";
+
+        std::cout << "3. PROXY - CachingRepositoryProxy\n";
+        std::cout << "   Кэширование доступа к репозиториям\n\n";
+
+        std::cout << "4. COMMAND - операции как объекты\n";
+        std::cout << "   Поддержка отмены/повтора операций\n\n";
+
+        std::cout << "5. DECORATOR - измерение производительности\n";
+        std::cout << "   Логирование и профилирование команд\n\n";
+
+        std::cout << "6. FACADE - упрощенный интерфейс\n";
+        std::cout << "   AccountFacade, OperationFacade, AnalyticsFacade\n\n";
+
+        std::cout << "7. TEMPLATE METHOD - импорт данных\n";
+        std::cout << "   Общий алгоритм с различными форматами\n\n";
+
+        std::cout << "8. VISITOR - экспорт данных\n";
+        std::cout << "   Обход структуры для разных форматов\n\n";
+
+        std::cout << "9. BUILDER - создание отчетов\n";
+        std::cout << "   Пошаговое построение сложных отчетов\n\n";
+
+        std::cout << "Нажмите Enter для продолжения...";
+        std::cin.ignore();
+        std::cin.get();
+    }
+
+    void runQuickDemo() {
+        std::cout << "\n=== БЫСТРАЯ ДЕМОНСТРАЦИЯ ===\n";
+
+        try {
+            // Создаем стандартные категории
+            std::cout << "\n1. Создание стандартных категорий...\n";
+            categoryFacade_->createDefaultCategories();
+            std::cout << "   ✓ Категории созданы\n";
+
+            // Создаем счета
+            std::cout << "\n2. Создание счетов...\n";
+            auto mainAccount = accountFacade_->createAccount("Основной счет", 100000);
+            auto savingsAccount = accountFacade_->createSavingsAccount("Накопления");
+            std::cout << "   ✓ Счета созданы\n";
+
+            // Добавляем операции
+            std::cout << "\n3. Добавление операций...\n";
+            auto salaryCategory = categoryFacade_->getCategoryByName("Salary");
+            auto foodCategory = categoryFacade_->getCategoryByName("Food");
+
+            if (salaryCategory && foodCategory) {
+                operationFacade_->addIncome(mainAccount->getId(), 50000, salaryCategory->getId(), "Зарплата");
+                operationFacade_->addExpense(mainAccount->getId(), 5000, foodCategory->getId(), "Продукты");
+                std::cout << "   ✓ Операции добавлены\n";
+            }
+
+            // Перевод между счетами
+            std::cout << "\n4. Перевод между счетами...\n";
+            accountFacade_->transfer(mainAccount->getId(), savingsAccount->getId(), 20000);
+            std::cout << "   ✓ Перевод выполнен\n";
+
+            // Показываем отчет
+            std::cout << "\n5. Генерация отчета...\n";
+            auto report = analyticsFacade_->generateMonthlyReport();
+            std::cout << report << "\n";
+
+            std::cout << "\nДемонстрация завершена!\n";
+
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+
+        std::cout << "\nНажмите Enter для продолжения...";
+        std::cin.ignore();
+        std::cin.get();
+    }
+
+    // Helper methods
+    int getUserChoice(int min, int max) {
+        int choice;
+        while (true) {
+            std::cout << "Выберите опцию (" << min << "-" << max << "): ";
+            std::cin >> choice;
+
+            if (std::cin.fail() || choice < min || choice > max) {
+                std::cin.clear();
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cout << "Неверный выбор. Попробуйте снова.\n";
+            } else {
+                std::cin.ignore();
+                return choice;
+            }
+        }
+    }
+
+    std::string getUserInput(const std::string& prompt) {
+        std::cout << prompt;
+        std::string input;
+        std::getline(std::cin, input);
+        return input;
+    }
+
+    double getUserDouble(const std::string& prompt) {
+        double value;
+        while (true) {
+            std::cout << prompt;
+            std::cin >> value;
+
+            if (std::cin.fail()) {
+                std::cin.clear();
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cout << "Неверный формат числа. Попробуйте снова.\n";
+            } else {
+                std::cin.ignore();
+                return value;
+            }
+        }
+    }
+
+    // Additional helper methods
+    void listCategories(CategoryType type) {
+        auto categories = (type == CategoryType::INCOME) ?
+            categoryFacade_->getIncomeCategories() :
+            categoryFacade_->getExpenseCategories();
+
+        std::cout << "\n--- Категории " << (type == CategoryType::INCOME ? "доходов" : "расходов") << " ---\n";
+        for (const auto& cat : categories) {
+            std::cout << cat->getId().substr(0, 14) << " - " << cat->getName() << "\n";
+        }
+    }
+
+    void listCategories() {
+        // std::cout << "\n--- Категории доходов ---\n";
+        listCategories(CategoryType::INCOME);
+        // std::cout << "\n--- Категории расходов ---\n";
+        listCategories(CategoryType::EXPENSE);
+    }
+
+    void depositToAccount() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета: ");
+        double amount = getUserDouble("Сумма пополнения: ");
+
+        try {
+            accountFacade_->deposit(accountId, amount);
+            std::cout << "✓ Счет пополнен успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void withdrawFromAccount() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета: ");
+        double amount = getUserDouble("Сумма снятия: ");
+
+        try {
+            accountFacade_->withdraw(accountId, amount);
+            std::cout << "✓ Средства сняты успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void transferBetweenAccounts() {
+        listAccounts();
+        std::string fromId = getUserInput("\nID счета отправителя: ");
+        std::string toId = getUserInput("ID счета получателя: ");
+        double amount = getUserDouble("Сумма перевода: ");
+
+        try {
+            accountFacade_->transfer(fromId, toId, amount);
+            std::cout << "✓ Перевод выполнен успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void deleteAccount() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета для удаления: ");
+
+        try {
+            accountFacade_->deleteAccount(accountId);
+            std::cout << "✓ Счет удален успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void deleteCategory() {
+        listCategories();
+        std::string categoryId = getUserInput("\nВведите ID категории для удаления: ");
+
+        try {
+            categoryFacade_->deleteCategory(categoryId);
+            std::cout << "✓ Категория удалена успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void listOperations() {
+        listAccounts();
+        std::string accountId = getUserInput("\nВведите ID счета (пусто для всех): ");
+
+        // Implementation simplified
+        std::cout << "Список операций...\n";
+    }
+
+    void showTodayOperations() {
+        auto operations = operationFacade_->getTodayOperations();
+        std::cout << "\nОпераций за сегодня: " << operations.size() << "\n";
+    }
+
+    void showMonthOperations() {
+        auto operations = operationFacade_->getMonthOperations();
+        std::cout << "\nОпераций за месяц: " << operations.size() << "\n";
+    }
+
+    void deleteOperation() {
+        std::string operationId = getUserInput("Введите ID операции для удаления: ");
+
+        try {
+            operationFacade_->deleteOperation(operationId);
+            std::cout << "✓ Операция удалена успешно!\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void showYearlyReport() {
+        auto report = analyticsFacade_->generateYearlyReport();
+        std::cout << "\n" << report << "\n";
+    }
+
+    void showTopIncomeCategories() {
+        auto categories = analyticsFacade_->getTopIncomeCategories(5);
+        std::cout << "\n--- Топ категорий доходов ---\n";
+        for (const auto& cat : categories) {
+            std::cout << cat.categoryName << ": " << cat.totalAmount.getAmount() << "\n";
+        }
+    }
+
+    void showTopExpenseCategories() {
+        auto categories = analyticsFacade_->getTopExpenseCategories(5);
+        std::cout << "\n--- Топ категорий расходов ---\n";
+        for (const auto& cat : categories) {
+            std::cout << cat.categoryName << ": " << cat.totalAmount.getAmount() << "\n";
+        }
+    }
+
+    void checkBalances() {
+        auto balances = analyticsFacade_->checkAllBalances();
+        std::cout << "\n--- Проверка балансов ---\n";
+        for (const auto& balance : balances) {
+            std::cout << balance.accountName << ": ";
+            if (balance.hasDiscrepancy) {
+                std::cout << "✗ Несоответствие! ";
+                std::cout << "Текущий: " << balance.balance.getAmount();
+                std::cout << ", Расчетный: " << balance.calculatedBalance.getAmount() << "\n";
+            } else {
+                std::cout << "✓ OK (" << balance.balance.getAmount() << ")\n";
+            }
+        }
+    }
+
+    void exportToCSV() {
+        std::string filename = getUserInput("Имя файла (с расширением .csv): ");
+        try {
+            analyticsFacade_->exportToCSV(filename);
+            std::cout << "✓ Данные экспортированы в " << filename << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void exportToJSON() {
+        std::string filename = getUserInput("Имя файла (с расширением .json): ");
+        try {
+            analyticsFacade_->exportToJSON(filename);
+            std::cout << "✓ Данные экспортированы в " << filename << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void importFromCSV() {
+        std::string filename = getUserInput("Имя файла CSV: ");
+        try {
+            analyticsFacade_->importFromCSV(filename);
+            std::cout << "✓ Данные импортированы из " << filename << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void importFromJSON() {
+        std::string filename = getUserInput("Имя файла JSON: ");
+        try {
+            analyticsFacade_->importFromJSON(filename);
+            std::cout << "✓ Данные импортированы из " << filename << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "✗ Ошибка: " << e.what() << "\n";
+        }
+    }
+
+    void displayHelp() {
+        std::cout << "\n=== СПРАВКА ===\n";
+        std::cout << "Система учета финансов ВШЭ-Банк\n";
+        std::cout << "--------------------------------\n";
+        std::cout << "Основные возможности:\n";
+        std::cout << "• Управление счетами и категориями\n";
+        std::cout << "• Учет доходов и расходов\n";
+        std::cout << "• Аналитика и отчетность\n";
+        std::cout << "• Импорт/экспорт данных\n";
+        std::cout << "• Поддержка отмены операций\n";
+        std::cout << "\nИспользуйте числовые команды для навигации.\n";
+    }
+
+    void displayGoodbye() {
+        std::cout << "\n╔════════════════════════════════════════════════════╗\n";
+        std::cout << "║         Спасибо за использование системы!         ║\n";
+        std::cout << "║                    До свидания!                   ║\n";
+        std::cout << "╚════════════════════════════════════════════════════╝\n\n";
+    }
+};
+
+} // namespace financial::presentation
+
+
+
+di_container.h:
+
+#pragma once
+
+#include <memory>
+#include <unordered_map>
+#include <typeindex>
+#include <functional>
+#include <mutex>
+#include <stdexcept>
+#include <any>
+#include "domain/repositories/repository_interfaces.h"
+#include "domain/factories/entity_factory.h"
+#include "domain/services/domain_services.h"
+#include "infrastructure/persistence/in_memory_repository.h"
+#include "infrastructure/proxy/caching_proxy.h"
+
+namespace financial::infrastructure {
+
+// DI-контейнер
+class DIContainer {
+private:
+    static std::unique_ptr<DIContainer> instance_;
+    static std::mutex mutex_;
+
+    // Реестр служб
+    std::unordered_map<std::type_index, std::any> services_;
+    std::unordered_map<std::type_index, std::function<std::any()>> factories_;
+    mutable std::mutex servicesMutex_;
+
+    DIContainer() = default;
+
+public:
+    DIContainer(const DIContainer&) = delete;
+    DIContainer& operator=(const DIContainer&) = delete;
+
+    static DIContainer& getInstance() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!instance_) {
+            instance_ = std::unique_ptr<DIContainer>(new DIContainer());
+        }
+        return *instance_;
+    }
+
+    template<typename Interface, typename Implementation>
+    void registerSingleton(std::shared_ptr<Implementation> implementation) {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+        services_[std::type_index(typeid(Interface))] =
+            std::static_pointer_cast<Interface>(implementation);
+    }
+
+    // Зарегистрировать службу singleton с фабрикой
+    template<typename Interface>
+    void registerSingleton(std::function<std::shared_ptr<Interface>()> factory) {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+        auto service = factory();
+        services_[std::type_index(typeid(Interface))] = service;
+    }
+
+    // Зарегистрировать временный сервис (новый экземпляр при каждом запросе)
+    template<typename Interface>
+    void registerTransient(std::function<std::shared_ptr<Interface>()> factory) {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+        factories_[std::type_index(typeid(Interface))] =
+            [factory]() -> std::any { return factory(); };
+    }
+
+    // Разрешить зависимость сервиса
+    template<typename Interface>
+    std::shared_ptr<Interface> resolve() {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+
+        auto it = services_.find(std::type_index(typeid(Interface)));
+        if (it != services_.end()) {
+            try {
+                return std::any_cast<std::shared_ptr<Interface>>(it->second);
+            } catch (const std::bad_any_cast& e) {
+                throw std::runtime_error("Не удалось разрешить зависимость: несоответствие типов");
+            }
+        }
+
+        auto factoryIt = factories_.find(std::type_index(typeid(Interface)));
+        if (factoryIt != factories_.end()) {
+            try {
+                return std::any_cast<std::shared_ptr<Interface>>(factoryIt->second());
+            } catch (const std::bad_any_cast& e) {
+                throw std::runtime_error("Не удалось разрешить зависимость из фабрики: несоответствие типов");
+            }
+        }
+
+        throw std::runtime_error("Служба не зарегистрирована: " +
+            std::string(typeid(Interface).name()));
+    }
+
+    template<typename Interface>
+    bool isRegistered() const {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+        auto typeIdx = std::type_index(typeid(Interface));
+        return services_.count(typeIdx) > 0 || factories_.count(typeIdx) > 0;
+    }
+
+    void clear() {
+        std::lock_guard<std::mutex> lock(servicesMutex_);
+        services_.clear();
+        factories_.clear();
+    }
+
+    static void reset() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        instance_.reset();
+    }
+};
+
+inline std::unique_ptr<DIContainer> DIContainer::instance_ = nullptr;
+inline std::mutex DIContainer::mutex_;
+
+class ServiceConfigurator {
+public:
+    static void configureServices(bool useCaching = true) {
+        auto& container = DIContainer::getInstance();
+
+        container.clear();
+
+        container.registerSingleton<domain::IEntityFactory>(
+            []() { return std::make_shared<domain::EntityFactory>(); });
+
+        container.registerSingleton<domain::IUnitOfWork>(
+            []() { return std::make_shared<InMemoryUnitOfWork>(); });
+
+        auto unitOfWork = container.resolve<domain::IUnitOfWork>();
+
+        container.registerSingleton<domain::IBankAccountRepository>(
+            [unitOfWork, useCaching]() -> std::shared_ptr<domain::IBankAccountRepository> {
+                auto repo = std::make_shared<InMemoryBankAccountRepository>();
+                if (useCaching) {
+                    return CachingProxyFactory::createCachingBankAccountRepository(
+                        repo, std::chrono::seconds(60));
+                }
+                return repo;
+            });
+
+        container.registerSingleton<domain::ICategoryRepository>(
+            [unitOfWork]() -> std::shared_ptr<domain::ICategoryRepository> {
+                return std::make_shared<InMemoryCategoryRepository>();
+            });
+
+        container.registerSingleton<domain::IOperationRepository>(
+            [unitOfWork]() -> std::shared_ptr<domain::IOperationRepository> {
+                return std::make_shared<InMemoryOperationRepository>();
+            });
+
+        // Зарегистрировать доменные сервисы
+        container.registerTransient<domain::AnalyticsService>(
+            []() {
+                auto& c = DIContainer::getInstance();
+                return std::make_shared<domain::AnalyticsService>(
+                    c.resolve<domain::IOperationRepository>(),
+                    c.resolve<domain::ICategoryRepository>()
+                );
+            });
+
+        container.registerTransient<domain::BalanceReconciliationService>(
+            []() {
+                auto& c = DIContainer::getInstance();
+                return std::make_shared<domain::BalanceReconciliationService>(
+                    c.resolve<domain::IBankAccountRepository>(),
+                    c.resolve<domain::IOperationRepository>()
+                );
+            });
+
+        container.registerTransient<domain::OperationProcessingService>(
+            []() {
+                auto& c = DIContainer::getInstance();
+                return std::make_shared<domain::OperationProcessingService>(
+                    c.resolve<domain::IBankAccountRepository>(),
+                    c.resolve<domain::IOperationRepository>(),
+                    c.resolve<domain::IEntityFactory>()
+                );
+            });
+    }
+
+    static void configureTestServices() {
+        configureServices(false);
+    }
+};
+
+class ServiceLocator {
+public:
+    template<typename T>
+    static std::shared_ptr<T> get() {
+      return DIContainer::getInstance().resolve<T>();
+    }
+
+    template<typename T>
+    static bool has() {
+        return DIContainer::getInstance().isRegistered<T>();
+    }
+};
+
+} // namespace financial::infrastructure
+
+analytics_facade.h:
+#pragma once
+
+#include <memory>
+#include <vector>
+#include <sstream>
+#include <iomanip>
+#include "domain/services/domain_services.h"
+#include "infrastructure/serialization/data_exporter.h"
+#include "infrastructure/serialization/data_importer.h"
+
+namespace financial::application {
+
+using namespace financial::domain;
+using namespace financial::infrastructure;
+
+// Report Builder pattern for creating analytics reports
+class AnalyticsReportBuilder {
+private:
+    std::stringstream report_;
+    PeriodAnalytics analytics_;
+    std::string title_;
+    bool includeCharts_ = false;
+    bool includeDetails_ = true;
+    bool includeSummary_ = true;
+
+public:
+    AnalyticsReportBuilder& setTitle(const std::string& title) {
+        title_ = title;
+        return *this;
+    }
+
+    AnalyticsReportBuilder& setAnalytics(const PeriodAnalytics& analytics) {
+        analytics_ = analytics;
+        return *this;
+    }
+
+    AnalyticsReportBuilder& includeCharts(bool include = true) {
+        includeCharts_ = include;
+        return *this;
+    }
+
+    AnalyticsReportBuilder& includeDetails(bool include = true) {
+        includeDetails_ = include;
+        return *this;
+    }
+
+    AnalyticsReportBuilder& includeSummary(bool include = true) {
+        includeSummary_ = include;
+        return *this;
+    }
+
+    std::string build() {
+        report_.str("");
+        report_.clear();
+
+        // Header
+        report_ << "========================================\n";
+        report_ << title_ << "\n";
+        report_ << "========================================\n\n";
+
+        // Period info
+        report_ << "Period: " << DateTimeUtils::toString(analytics_.period.getStart())
+                << " - " << DateTimeUtils::toString(analytics_.period.getEnd()) << "\n\n";
+
+        // Summary
+        if (includeSummary_) {
+            buildSummary();
+        }
+
+        // Details
+        if (includeDetails_) {
+            buildIncomeDetails();
+            buildExpenseDetails();
+        }
+
+        // Charts (text-based)
+        if (includeCharts_) {
+            buildCharts();
+        }
+
+        // Footer
+        report_ << "\n========================================\n";
+        report_ << "Generated: " << DateTimeUtils::toString(DateTimeUtils::now()) << "\n";
+
+        return report_.str();
+    }
+
+private:
+    void buildSummary() {
+        report_ << "SUMMARY\n";
+        report_ << "-------\n";
+        report_ << std::fixed << std::setprecision(2);
+        report_ << "Total Income:  " << std::setw(12) << analytics_.totalIncome.getAmount()
+                << " " << analytics_.totalIncome.getCurrency() << "\n";
+        report_ << "Total Expense: " << std::setw(12) << analytics_.totalExpense.getAmount()
+                << " " << analytics_.totalExpense.getCurrency() << "\n";
+        report_ << "Net Income:    " << std::setw(12) << analytics_.netIncome.getAmount()
+                << " " << analytics_.netIncome.getCurrency() << "\n\n";
+    }
+
+    void buildIncomeDetails() {
+        if (analytics_.incomeByCategory.empty()) return;
+
+        report_ << "INCOME BY CATEGORY\n";
+        report_ << "------------------\n";
+
+        for (const auto& cat : analytics_.incomeByCategory) {
+            report_ << std::left << std::setw(20) << cat.categoryName
+                    << std::right << std::setw(12) << cat.totalAmount.getAmount()
+                    << " (" << std::setw(5) << std::setprecision(1)
+                    << cat.percentage << "%)"
+                    << " [" << cat.operationCount << " operations]\n";
+        }
+        report_ << "\n";
+    }
+
+    void buildExpenseDetails() {
+        if (analytics_.expenseByCategory.empty()) return;
+
+        report_ << "EXPENSES BY CATEGORY\n";
+        report_ << "--------------------\n";
+
+        for (const auto& cat : analytics_.expenseByCategory) {
+            report_ << std::left << std::setw(20) << cat.categoryName
+                    << std::right << std::setw(12) << cat.totalAmount.getAmount()
+                    << " (" << std::setw(5) << std::setprecision(1)
+                    << cat.percentage << "%)"
+                    << " [" << cat.operationCount << " operations]\n";
+        }
+        report_ << "\n";
+    }
+
+    void buildCharts() {
+        report_ << "EXPENSE DISTRIBUTION (Text Chart)\n";
+        report_ << "---------------------------------\n";
+
+        const int maxWidth = 40;
+        for (const auto& cat : analytics_.expenseByCategory) {
+            int barLength = static_cast<int>((cat.percentage / 100.0) * maxWidth);
+            report_ << std::left << std::setw(15) << cat.categoryName << " |";
+
+            for (int i = 0; i < barLength; ++i) {
+                report_ << "█";
+            }
+            report_ << " " << std::setprecision(1) << cat.percentage << "%\n";
+        }
+        report_ << "\n";
+    }
+};
+
+// Analytics Facade
+class AnalyticsFacade {
+private:
+    std::shared_ptr<AnalyticsService> analyticsService_;
+    std::shared_ptr<BalanceReconciliationService> reconciliationService_;
+    std::shared_ptr<IOperationRepository> operationRepo_;
+    std::shared_ptr<IBankAccountRepository> accountRepo_;
+    std::shared_ptr<ICategoryRepository> categoryRepo_;
+
+public:
+    // Небольшое пояснение: в этом классе, для избежания
+    // цилической зависимости мне пришлось сделать
+    // ленивую инициализацию первых двух полей. Другого
+    // решения я к сожалению не нашёл
+    AnalyticsFacade() {
+        // analyticsService_ = ServiceLocator::get<AnalyticsService>();
+        // reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
+        operationRepo_ = ServiceLocator::get<IOperationRepository>();
+        accountRepo_ = ServiceLocator::get<IBankAccountRepository>();
+        categoryRepo_ = ServiceLocator::get<ICategoryRepository>();
+    }
+
+    // Period analytics
+    PeriodAnalytics getAnalytics(const DateRange& period) {
+        if (!analyticsService_) {
+          analyticsService_ = ServiceLocator::get<AnalyticsService>();
+
+        }
+        return analyticsService_->calculatePeriodAnalytics(period);
+    }
+
+    PeriodAnalytics getTodayAnalytics() {
+        return getAnalytics(DateRange::today());
+    }
+
+    PeriodAnalytics getMonthAnalytics() {
+        return getAnalytics(DateRange::thisMonth());
+    }
+
+    PeriodAnalytics getYearAnalytics() {
+        return getAnalytics(DateRange::thisYear());
+    }
+
+    PeriodAnalytics getCustomPeriodAnalytics(const DateTime& start, const DateTime& end) {
+        return getAnalytics(DateRange(start, end));
+    }
+
+    // Top categories
+    std::vector<CategoryAnalytics> getTopIncomeCategories(size_t limit = 5) {
+      if (!analyticsService_) {
+        analyticsService_ = ServiceLocator::get<AnalyticsService>();
+      }
+        return analyticsService_->getTopCategories(
+            DateRange::thisMonth(), OperationType::INCOME, limit);
+    }
+
+    std::vector<CategoryAnalytics> getTopExpenseCategories(size_t limit = 5) {
+      if (!analyticsService_) {
+        analyticsService_ = ServiceLocator::get<AnalyticsService>();
+      }
+        return analyticsService_->getTopCategories(
+            DateRange::thisMonth(), OperationType::EXPENSE, limit);
+    }
+
+    // Balance reconciliation
+    AccountBalance checkBalance(const Id& accountId) {
+      if (reconciliationService_) {
+        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
+      }
+        return reconciliationService_->checkAccountBalance(accountId);
+    }
+
+    std::vector<AccountBalance> checkAllBalances() {
+      if (reconciliationService_) {
+        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
+      }
+        return reconciliationService_->checkAllBalances();
+    }
+
+    void recalculateBalance(const Id& accountId, bool autoFix = false) {
+      if (reconciliationService_) {
+        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
+      }
+        reconciliationService_->recalculateBalance(accountId, autoFix);
+    }
+
+    void fixAllBalanceDiscrepancies() {
+        auto balances = checkAllBalances();
+        for (const auto& balance : balances) {
+            if (balance.hasDiscrepancy) {
+                recalculateBalance(balance.accountId, true);
+            }
+        }
+    }
+
+    // Report generation using Builder
+    std::string generateMonthlyReport() {
+      std::cout << "OK" << '\n';
+
+        auto analytics = getMonthAnalytics();
+        std::cout << "OK" << '\n';
+        return AnalyticsReportBuilder()
+            .setTitle("Monthly Financial Report")
+            .setAnalytics(analytics)
+            .includeSummary(true)
+            .includeDetails(true)
+            .includeCharts(true)
+            .build();
+    }
+
+    std::string generateYearlyReport() {
+        auto analytics = getYearAnalytics();
+
+        return AnalyticsReportBuilder()
+            .setTitle("Yearly Financial Report")
+            .setAnalytics(analytics)
+            .includeSummary(true)
+            .includeDetails(true)
+            .includeCharts(false)
+            .build();
+    }
+
+    std::string generateCustomReport(const DateRange& period, const std::string& title) {
+        auto analytics = getAnalytics(period);
+
+        return AnalyticsReportBuilder()
+            .setTitle(title)
+            .setAnalytics(analytics)
+            .includeSummary(true)
+            .includeDetails(true)
+            .includeCharts(true)
+            .build();
+    }
+
+    // Data export
+    void exportToCSV(const std::string& filename) {
+        auto exporter = ExporterFactory::create("csv");
+        exporter->exportToFile(
+            filename,
+            accountRepo_->findAll(),
+            categoryRepo_->findAll(),
+            operationRepo_->findAll()
+        );
+    }
+
+    void exportToJSON(const std::string& filename) {
+        auto exporter = ExporterFactory::create("json");
+        exporter->exportToFile(
+            filename,
+            accountRepo_->findAll(),
+            categoryRepo_->findAll(),
+            operationRepo_->findAll()
+        );
+    }
+
+    // Data import
+    void importFromCSV(const std::string& filename) {
+        auto importer = ImporterFactory::create("csv");
+        auto data = importer->import(filename);
+
+        // Process imported data
+        processImportedData(data);
+    }
+
+    void importFromJSON(const std::string& filename) {
+        auto importer = ImporterFactory::create("json");
+        auto data = importer->import(filename);
+
+        // Process imported data
+        processImportedData(data);
+    }
+
+    // Statistics
+    Money calculateAverageMonthlyIncome() {
+        auto yearAnalytics = getYearAnalytics();
+        if (yearAnalytics.totalIncome.isZero()) {
+            return Money::zero();
+        }
+        return yearAnalytics.totalIncome.multiply(1.0 / 12.0);
+    }
+
+    Money calculateAverageMonthlyExpense() {
+        auto yearAnalytics = getYearAnalytics();
+        if (yearAnalytics.totalExpense.isZero()) {
+            return Money::zero();
+        }
+        return yearAnalytics.totalExpense.multiply(1.0 / 12.0);
+    }
+
+    double calculateSavingsRate() {
+        auto monthAnalytics = getMonthAnalytics();
+        if (monthAnalytics.totalIncome.isZero()) {
+            return 0.0;
+        }
+
+        double savingsRate = (monthAnalytics.netIncome.getAmount() /
+                             monthAnalytics.totalIncome.getAmount()) * 100;
+        return savingsRate;
+    }
+
+private:
+    void processImportedData(const ImportData& data) {
+        auto factory = ServiceLocator::get<IEntityFactory>();
+
+        // Import accounts
+        for (const auto& accountDTO : data.accounts) {
+            auto account = factory->createBankAccount(
+                accountDTO.name,
+                Money(accountDTO.balance, accountDTO.currency),
+                accountDTO.accountNumber
+            );
+            accountRepo_->save(account);
+        }
+
+        // Import categories
+        for (const auto& categoryDTO : data.categories) {
+            auto type = stringToCategoryType(categoryDTO.type);
+            auto category = factory->createCategory(
+                type,
+                categoryDTO.name,
+                categoryDTO.description
+            );
+            categoryRepo_->save(category);
+        }
+
+        // Import operations
+        for (const auto& operationDTO : data.operations) {
+            auto type = stringToOperationType(operationDTO.type);
+            auto operation = factory->createOperation(
+                type,
+                operationDTO.bankAccountId,
+                Money(operationDTO.amount, operationDTO.currency),
+                operationDTO.categoryId,
+                operationDTO.description,
+                DateTimeUtils::fromString(operationDTO.date)
+            );
+            operationRepo_->save(operation);
+        }
+    }
+};
+
+} // namespace financial::application
+
+operation_facade.h:
+
+#pragma once
+
+#include <vector>
+
+#include "application/commands/commands.h"
+#include "application/decorators/command_decorators.h"
+#include "domain/entities/category.h"
+#include "domain/entities/operation.h"
+#include "domain/repositories/repository_interfaces.h"
+#include "domain/services/domain_services.h"
+
+namespace financial::application {
+
+using namespace financial::domain;
+
+// Фасад управления категориями
+class CategoryFacade {
+ private:
+  std::shared_ptr<ICategoryRepository> categoryRepo_;
+  std::shared_ptr<IEntityFactory> factory_;
+  std::shared_ptr<CommandHistory> history_;
+  int decorationFlags_;
+
+ public:
+  CategoryFacade(int decorationFlags = DecoratedCommandFactory::LOGGING)
+      : decorationFlags_(decorationFlags) {
+    categoryRepo_ = ServiceLocator::get<ICategoryRepository>();
+    factory_ = ServiceLocator::get<IEntityFactory>();
+    history_ = std::make_shared<CommandHistory>();
+  }
+
+  // Создать категорию
+  std::shared_ptr<Category> createCategory(
+      CategoryType type, const std::string& name,
+      const std::string& description = "") {
+    auto command =
+        std::make_shared<CreateCategoryCommand>(type, name, description);
+    auto decoratedCommand =
+        DecoratedCommandFactory::decorate(command, decorationFlags_);
+    history_->execute(decoratedCommand);
+
+    return command->getCreatedCategory();
+  }
+
+  std::shared_ptr<Category> createIncomeCategory(
+      const std::string& name, const std::string& description = "") {
+    return createCategory(CategoryType::INCOME, name, description);
+  }
+
+  std::shared_ptr<Category> createExpenseCategory(
+      const std::string& name, const std::string& description = "") {
+    return createCategory(CategoryType::EXPENSE, name, description);
+  }
+
+  // Запросы категорий
+  std::shared_ptr<Category> getCategory(const Id& categoryId) {
+    auto result = categoryRepo_->findById(categoryId);
+    return result ? *result : nullptr;
+  }
+
+  std::shared_ptr<Category> getCategoryByName(const std::string& name) {
+    auto result = categoryRepo_->findByName(name);
+    return result ? *result : nullptr;
+  }
+
+  std::vector<std::shared_ptr<Category>> getAllCategories() {
+    return categoryRepo_->findAll();
+  }
+
+  std::vector<std::shared_ptr<Category>> getIncomeCategories() {
+    return categoryRepo_->findByType(CategoryType::INCOME);
+  }
+
+  std::vector<std::shared_ptr<Category>> getExpenseCategories() {
+    return categoryRepo_->findByType(CategoryType::EXPENSE);
+  }
+
+  // Управление категориями
+  void updateCategory(const Id& categoryId, const std::string& newName,
+                      const std::string& newDescription) {
+    auto category = getCategory(categoryId);
+    if (!category) {
+      throw EntityNotFoundException("Category", categoryId);
+    }
+
+    category->setName(newName);
+    category->setDescription(newDescription);
+    categoryRepo_->update(category);
+  }
+
+  void deleteCategory(const Id& categoryId) {
+    auto operationRepo = ServiceLocator::get<IOperationRepository>();
+    auto operations = operationRepo->findByCategory(categoryId);
+
+    if (!operations.empty()) {
+      throw DomainException(
+          "Невозможно удалить категорию с существующими операциями");
+    }
+
+    categoryRepo_->remove(categoryId);
+  }
+
+  // Создать стандартные категории
+  void createDefaultCategories() {
+    // Категории доходов
+    createIncomeCategory("Зарплата", "Ежемесячная зарплата");
+    createIncomeCategory("Фриланс", "Доход от фриланса");
+    createIncomeCategory("Инвестиции", "Доход от инвестиций");
+    createIncomeCategory("Подарок", "Подарки и пожертвования");
+    createIncomeCategory("Другой доход", "Другие источники дохода");
+
+    // Категории расходов
+    createExpenseCategory("Еда", "Продукты и питание");
+    createExpenseCategory("Транспорт", "Расходы на транспорт");
+    createExpenseCategory("Жилье", "Аренда и коммунальные услуги");
+    createExpenseCategory("Здравоохранение", "Медицинские расходы");
+    createExpenseCategory("Развлечения", "Развлечения и отдых");
+    createExpenseCategory("Покупки", "Общие покупки");
+    createExpenseCategory("Образование", "Образовательные расходы");
+    createExpenseCategory("Другой расход", "Другие расходы");
+  }
+};
+
+// Фасад управления операциями
+class OperationFacade {
+ private:
+  std::shared_ptr<IOperationRepository> operationRepo_;
+  std::shared_ptr<OperationProcessingService> processingService_;
+  std::shared_ptr<IEntityFactory> factory_;
+  std::shared_ptr<CommandHistory> history_;
+  int decorationFlags_;
+
+ public:
+  // В этом классе во избежание циклической зависимости между классами
+  //  OperationProcessingService IOperationRepository и OperationFacade, мне
+  //  пришлось сделать
+  // ленивую инициализацию поля processingService_. Другого
+  // решения я к сожалению не придумал :(
+  OperationFacade(int decorationFlags = DecoratedCommandFactory::ALL)
+      : decorationFlags_(decorationFlags) {
+    operationRepo_ = ServiceLocator::get<IOperationRepository>();
+    factory_ = ServiceLocator::get<IEntityFactory>();
+    history_ = std::make_shared<CommandHistory>();
+  }
+
+  // Добавить операции
+  std::shared_ptr<Operation> addIncome(const Id& accountId, double amount,
+                                       const Id& categoryId,
+                                       const std::string& description = "",
+                                       const std::string& currency = "RUB") {
+    auto command = std::make_shared<AddOperationCommand>(
+        OperationType::INCOME, accountId, Money(amount, currency), categoryId,
+        description);
+
+    auto decoratedCommand =
+        DecoratedCommandFactory::decorate(command, decorationFlags_);
+    history_->execute(decoratedCommand);
+
+    return command->getCreatedOperation();
+  }
+
+  std::shared_ptr<Operation> addExpense(const Id& accountId, double amount,
+                                        const Id& categoryId,
+                                        const std::string& description = "",
+                                        const std::string& currency = "RUB") {
+    auto command = std::make_shared<AddOperationCommand>(
+        OperationType::EXPENSE, accountId, Money(amount, currency), categoryId,
+        description);
+
+    auto decoratedCommand =
+        DecoratedCommandFactory::decorate(command, decorationFlags_);
+    history_->execute(decoratedCommand);
+
+    return command->getCreatedOperation();
+  }
+
+  // Быстрые операции с категориями по умолчанию
+  std::shared_ptr<Operation> addQuickIncome(
+      const Id& accountId, double amount, const std::string& description = "") {
+    auto categoryFacade = CategoryFacade();
+    auto category = categoryFacade.getCategoryByName("Другой доход");
+    if (!category) {
+      category = categoryFacade.createIncomeCategory("Другой доход",
+                                                     "Другие источники дохода");
+    }
+
+    return addIncome(accountId, amount, category->getId(), description);
+  }
+
+  std::shared_ptr<Operation> addQuickExpense(
+      const Id& accountId, double amount, const std::string& description = "") {
+    auto categoryFacade = CategoryFacade();
+    auto category = categoryFacade.getCategoryByName("Другой расход");
+    if (!category) {
+      category = categoryFacade.createExpenseCategory("Другой расход",
+                                                      "Другие расходы");
+    }
+
+    return addExpense(accountId, amount, category->getId(), description);
+  }
+
+  // Запросы операций
+  std::shared_ptr<Operation> getOperation(const Id& operationId) {
+    auto result = operationRepo_->findById(operationId);
+    return result ? *result : nullptr;
+  }
+
+  std::vector<std::shared_ptr<Operation>> getAccountOperations(
+      const Id& accountId) {
+    return operationRepo_->findByAccount(accountId);
+  }
+
+  std::vector<std::shared_ptr<Operation>> getCategoryOperations(
+      const Id& categoryId) {
+    return operationRepo_->findByCategory(categoryId);
+  }
+
+  std::vector<std::shared_ptr<Operation>> getOperationsByDateRange(
+      const DateTime& start, const DateTime& end) {
+    return operationRepo_->findByDateRange(start, end);
+  }
+
+  std::vector<std::shared_ptr<Operation>> getOperationsByType(
+      OperationType type) {
+    return operationRepo_->findByType(type);
+  }
+
+  std::vector<std::shared_ptr<Operation>> getTodayOperations() {
+    auto range = DateRange::today();
+    return operationRepo_->findByDateRange(range.getStart(), range.getEnd());
+  }
+
+  std::vector<std::shared_ptr<Operation>> getMonthOperations() {
+    auto range = DateRange::thisMonth();
+    return operationRepo_->findByDateRange(range.getStart(), range.getEnd());
+  }
+
+  // Управление операциями
+  void updateOperation(const Id& operationId, const Money& newAmount,
+                       const std::string& newDescription) {
+    auto operation = getOperation(operationId);
+    if (!operation) {
+      throw EntityNotFoundException("Operation", operationId);
+    }
+
+    // Обновить операцию
+    operation->setAmount(newAmount);
+    operation->setDescription(newDescription);
+    operationRepo_->update(operation);
+
+    // Пересчитать баланс счёта
+    auto reconciliationService =
+        ServiceLocator::get<BalanceReconciliationService>();
+    reconciliationService->recalculateBalance(operation->getBankAccountId(),
+                                              true);
+  }
+
+  void deleteOperation(const Id& operationId) {
+    auto operation = getOperation(operationId);
+    if (!operation) {
+      throw EntityNotFoundException("Operation", operationId);
+    }
+
+    auto accountId = operation->getBankAccountId();
+
+    // Удалить операцию
+    operationRepo_->remove(operationId);
+
+    // Пересчитать баланс счёта
+    auto reconciliationService =
+        ServiceLocator::get<BalanceReconciliationService>();
+    reconciliationService->recalculateBalance(accountId, true);
+  }
+
+  // Повторяющиеся операции
+  void setRecurring(const Id& operationId, const std::string& pattern) {
+    auto operation = getOperation(operationId);
+    if (!operation) {
+      throw EntityNotFoundException("Operation", operationId);
+    }
+
+    operation->setRecurring(true, pattern);
+    operationRepo_->update(operation);
+  }
+
+  void processRecurringOperations() {
+    if (!processingService_) {
+      processingService_ = ServiceLocator::get<OperationProcessingService>();
+    }
+    processingService_->processRecurringOperations(DateTimeUtils::now());
+  }
+
+  // Управление историей
+  void undo() { history_->undo(); }
+
+  void redo() { history_->redo(); }
+
+  bool canUndo() const { return history_->canUndo(); }
+
+  bool canRedo() const { return history_->canRedo(); }
+};
+
+}  // namespace financial::application
+
+
+commands.h:
+
+#pragma once
+
+#include <string>
+#include <vector>
+
+#include "domain/factories/entity_factory.h"
+#include "domain/repositories/repository_interfaces.h"
+#include "domain/services/domain_services.h"
+#include "infrastructure/di/di_container.h"
+
+namespace financial::application {
+
+using namespace financial::domain;
+using namespace financial::infrastructure;
+
+// Интерфейс команды
+class ICommand {
+ public:
+  virtual ~ICommand() = default;
+  virtual void execute() = 0;
+  virtual void undo() = 0;
+  virtual std::string getName() const = 0;
+  virtual bool canUndo() const { return false; }
+};
+
+// Базовая команда с общей функциональностью
+class BaseCommand : public ICommand {
+ protected:
+  std::string name_;
+  bool executed_ = false;
+
+ public:
+  explicit BaseCommand(const std::string& name) : name_(name) {}
+
+  std::string getName() const override { return name_; }
+
+  void execute() override {
+    if (executed_) {
+      throw std::runtime_error("Команда уже выполнена: " + name_);
+    }
+    doExecute();
+    executed_ = true;
+  }
+
+  void undo() override {
+    if (!executed_) {
+      throw std::runtime_error("Команда не выполнена: " + name_);
+    }
+    if (!canUndo()) {
+      throw std::runtime_error("Команда не может быть отменена: " + name_);
+    }
+    doUndo();
+    executed_ = false;
+  }
+
+ protected:
+  virtual void doExecute() = 0;
+  virtual void doUndo() {}
+};
+
+// Команда создания счёта
+class CreateAccountCommand : public BaseCommand {
+ private:
+  std::string accountName_;
+  Money initialBalance_;
+  std::string accountNumber_;
+  std::shared_ptr<BankAccount> createdAccount_;
+  std::shared_ptr<IBankAccountRepository> repository_;
+  std::shared_ptr<IEntityFactory> factory_;
+
+ public:
+  CreateAccountCommand(const std::string& accountName,
+                       const Money& initialBalance = Money::zero(),
+                       const std::string& accountNumber = "")
+      : BaseCommand("-Создать Счет-"),
+        accountName_(accountName),
+        initialBalance_(initialBalance),
+        accountNumber_(accountNumber) {
+    repository_ = ServiceLocator::get<IBankAccountRepository>();
+    factory_ = ServiceLocator::get<IEntityFactory>();
+  }
+
+  bool canUndo() const override { return true; }
+
+ protected:
+  void doExecute() override {
+    createdAccount_ = factory_->createBankAccount(accountName_, initialBalance_,
+                                                  accountNumber_);
+    repository_->save(createdAccount_);
+  }
+
+  void doUndo() override {
+    if (createdAccount_) {
+      repository_->remove(createdAccount_->getId());
+      createdAccount_ = nullptr;
+    }
+  }
+
+ public:
+  std::shared_ptr<BankAccount> getCreatedAccount() const {
+    return createdAccount_;
+  }
+};
+
+// Команда создания категории
+class CreateCategoryCommand : public BaseCommand {
+ private:
+  CategoryType type_;
+  std::string categoryName_;
+  std::string description_;
+  std::shared_ptr<Category> createdCategory_;
+  std::shared_ptr<ICategoryRepository> repository_;
+  std::shared_ptr<IEntityFactory> factory_;
+
+ public:
+  CreateCategoryCommand(CategoryType type, const std::string& categoryName,
+                        const std::string& description = "")
+      : BaseCommand("-Создать Категорию-"),
+        type_(type),
+        categoryName_(categoryName),
+        description_(description) {
+    repository_ = ServiceLocator::get<ICategoryRepository>();
+    factory_ = ServiceLocator::get<IEntityFactory>();
+  }
+
+  bool canUndo() const override { return true; }
+
+ protected:
+  void doExecute() override {
+    createdCategory_ =
+        factory_->createCategory(type_, categoryName_, description_);
+    repository_->save(createdCategory_);
+  }
+
+  void doUndo() override {
+    if (createdCategory_) {
+      repository_->remove(createdCategory_->getId());
+      createdCategory_ = nullptr;
+    }
+  }
+
+ public:
+  std::shared_ptr<Category> getCreatedCategory() const {
+    return createdCategory_;
+  }
+};
+
+// Команда добавления операции
+class AddOperationCommand : public BaseCommand {
+ private:
+  OperationType type_;
+  Id bankAccountId_;
+  Money amount_;
+  Id categoryId_;
+  std::string description_;
+  std::shared_ptr<Operation> createdOperation_;
+  std::shared_ptr<OperationProcessingService> processingService_;
+  std::shared_ptr<IEntityFactory> factory_;
+  std::shared_ptr<BankAccount> account_;
+  Money previousBalance_;
+
+ public:
+  AddOperationCommand(OperationType type, const Id& bankAccountId,
+                      const Money& amount, const Id& categoryId,
+                      const std::string& description = "")
+      : BaseCommand("ДобавитьОперацию"),
+        type_(type),
+        bankAccountId_(bankAccountId),
+        amount_(amount),
+        categoryId_(categoryId),
+        description_(description) {
+    processingService_ = ServiceLocator::get<OperationProcessingService>();
+    factory_ = ServiceLocator::get<IEntityFactory>();
+  }
+
+  bool canUndo() const override { return true; }
+
+ protected:
+  void doExecute() override {
+    // Сохранить предыдущий баланс для отмены
+    auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
+    auto accountOpt = accountRepo->findById(bankAccountId_);
+    if (!accountOpt) {
+      throw EntityNotFoundException("BankAccount", bankAccountId_);
+    }
+    account_ = *accountOpt;
+    previousBalance_ = account_->getBalance();
+
+    // Создать и обработать операцию
+    createdOperation_ = factory_->createOperation(
+        type_, bankAccountId_, amount_, categoryId_, description_);
+    processingService_->processOperation(createdOperation_);
+  }
+
+  void doUndo() override {
+    if (createdOperation_ && account_) {
+      // Удалить операцию
+      auto operationRepo = ServiceLocator::get<IOperationRepository>();
+      operationRepo->remove(createdOperation_->getId());
+
+      // Восстановить баланс счёта
+      account_->recalculateBalance(previousBalance_);
+      auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
+      accountRepo->update(account_);
+
+      createdOperation_ = nullptr;
+    }
+  }
+
+ public:
+  std::shared_ptr<Operation> getCreatedOperation() const {
+    return createdOperation_;
+  }
+};
+
+// Команда перевода
+class TransferCommand : public BaseCommand {
+ private:
+  Id fromAccountId_;
+  Id toAccountId_;
+  Money amount_;
+  std::string description_;
+  std::shared_ptr<Operation> withdrawOperation_;
+  std::shared_ptr<Operation> depositOperation_;
+
+ public:
+  TransferCommand(const Id& fromAccountId, const Id& toAccountId,
+                  const Money& amount,
+                  const std::string& description = "Перевод")
+      : BaseCommand("Перевод"),
+        fromAccountId_(fromAccountId),
+        toAccountId_(toAccountId),
+        amount_(amount),
+        description_(description) {}
+
+  bool canUndo() const override { return true; }
+
+ protected:
+  void doExecute() override {
+    auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
+
+    // Получить счета
+    auto fromAccountOpt = accountRepo->findById(fromAccountId_);
+    auto toAccountOpt = accountRepo->findById(toAccountId_);
+
+    if (!fromAccountOpt || !toAccountOpt) {
+      throw EntityNotFoundException(
+          "BankAccount", !fromAccountOpt ? fromAccountId_ : toAccountId_);
+    }
+
+    auto fromAccount = *fromAccountOpt;
+    auto toAccount = *toAccountOpt;
+
+    fromAccount->transfer(*toAccount, amount_);
+
+    accountRepo->update(fromAccount);
+    accountRepo->update(toAccount);
+
+    auto factory = ServiceLocator::get<IEntityFactory>();
+    auto operationRepo = ServiceLocator::get<IOperationRepository>();
+  }
+
+  void doUndo() override {
+    auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
+
+    auto fromAccountOpt = accountRepo->findById(fromAccountId_);
+    auto toAccountOpt = accountRepo->findById(toAccountId_);
+
+    if (fromAccountOpt && toAccountOpt) {
+      auto fromAccount = *fromAccountOpt;
+      auto toAccount = *toAccountOpt;
+
+      toAccount->transfer(*fromAccount, amount_);
+
+      accountRepo->update(fromAccount);
+      accountRepo->update(toAccount);
+    }
+  }
+};
+
+// Команда пакета для выполнения нескольких команд
+class BatchCommand : public BaseCommand {
+ private:
+  std::vector<std::shared_ptr<ICommand>> commands_;
+  std::vector<std::shared_ptr<ICommand>> executedCommands_;
+
+ public:
+  explicit BatchCommand(const std::string& name = "Пакет")
+      : BaseCommand(name) {}
+
+  void addCommand(std::shared_ptr<ICommand> command) {
+    if (executed_) {
+      throw std::runtime_error("Невозможно добавить команды в выполненный пакет");
+    }
+    commands_.push_back(command);
+  }
+
+  bool canUndo() const override {
+    for (const auto& cmd : commands_) {
+      if (!cmd->canUndo()) return false;
+    }
+    return true;
+  }
+
+ protected:
+  void doExecute() override {
+    for (auto& cmd : commands_) {
+      try {
+        cmd->execute();
+        executedCommands_.push_back(cmd);
+      } catch (...) {
+        for (auto it = executedCommands_.rbegin();
+             it != executedCommands_.rend(); ++it) {
+          if ((*it)->canUndo()) {
+            (*it)->undo();
+          }
+        }
+        executedCommands_.clear();
+        throw;
+      }
+    }
+  }
+
+  void doUndo() override {
+    for (auto it = executedCommands_.rbegin(); it != executedCommands_.rend();
+         ++it) {
+      (*it)->undo();
+    }
+    executedCommands_.clear();
+  }
+};
+
+// История команд для функциональности отмены/повтора
+class CommandHistory {
+ private:
+  std::vector<std::shared_ptr<ICommand>> history_;
+  size_t currentIndex_ = 0;
+
+ public:
+  void execute(std::shared_ptr<ICommand> command) {
+    if (currentIndex_ < history_.size()) {
+      history_.erase(history_.begin() + currentIndex_, history_.end());
+    }
+
+    command->execute();
+    history_.push_back(command);
+    currentIndex_ = history_.size();
+  }
+
+  void undo() {
+    if (canUndo()) {
+      auto& command = history_[currentIndex_ - 1];
+      if (command->canUndo()) {
+        command->undo();
+        currentIndex_--;
+      }
+    }
+  }
+
+  void redo() {
+    if (canRedo()) {
+      auto& command = history_[currentIndex_];
+      command->execute();
+      currentIndex_++;
+    }
+  }
+
+  bool canUndo() const {
+    return currentIndex_ > 0 && history_[currentIndex_ - 1]->canUndo();
+  }
+
+  bool canRedo() const { return currentIndex_ < history_.size(); }
+
+  void clear() {
+    history_.clear();
+    currentIndex_ = 0;
+  }
+
+  std::vector<std::string> getHistoryNames() const {
+    std::vector<std::string> names;
+    for (const auto& cmd : history_) {
+      names.push_back(cmd->getName());
+    }
+    return names;
+  }
+};
+
+}  // namespace financial::application
+
+
+
+commands_decorators.h:
+
+#pragma once
+
+#include <iostream>
+#include <fstream>
+#include <mutex>
+#include <map>
+#include <sstream>
+#include <climits>
+#include "application/commands/commands.h"
+#include "common/utils.h"
+#include "infrastructure/di/di_container.h"
+
+namespace financial::application {
+
+// Базовый декоратор для команд
+class CommandDecorator : public ICommand {
+protected:
+    std::shared_ptr<ICommand> wrappedCommand_;
+
+public:
+    explicit CommandDecorator(std::shared_ptr<ICommand> command)
+        : wrappedCommand_(command) {}
+
+    std::string getName() const override {
+        return wrappedCommand_->getName();
+    }
+
+    bool canUndo() const override {
+        return wrappedCommand_->canUndo();
+    }
+};
+
+// Декоратор измерения производительности
+class PerformanceMeasuringDecorator : public CommandDecorator {
+private:
+    mutable long long executionTime_ = 0;
+    mutable long long undoTime_ = 0;
+
+public:
+    explicit PerformanceMeasuringDecorator(std::shared_ptr<ICommand> command)
+        : CommandDecorator(command) {}
+
+    void execute() override {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        wrappedCommand_->execute();
+
+        auto end = std::chrono::high_resolution_clock::now();
+        executionTime_ = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    }
+
+    void undo() override {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        wrappedCommand_->undo();
+
+        auto end = std::chrono::high_resolution_clock::now();
+        undoTime_ = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    }
+
+    long long getExecutionTime() const { return executionTime_; }
+    long long getUndoTime() const { return undoTime_; }
+
+    std::string getPerformanceReport() const {
+        std::stringstream ss;
+        ss << "Команда: " << getName() << "\n"
+           << "  Время выполнения: " << executionTime_ << " мкс\n"
+           << "  Время отмены: " << undoTime_ << " мкс\n";
+        return ss.str();
+    }
+};
+
+// Декоратор логирования
+class LoggingDecorator : public CommandDecorator {
+private:
+    static std::mutex logMutex_;
+    static std::ofstream logFile_;
+
+    static void log(const std::string& message) {
+        std::lock_guard<std::mutex> lock(logMutex_);
+
+        auto now = DateTimeUtils::now();
+        std::string timestamp = DateTimeUtils::toString(now);
+
+        // Лог в консоль
+        std::cout << "[" << timestamp << "] " << message << std::endl;
+
+        if (logFile_.is_open()) {
+            logFile_ << "[" << timestamp << "] " << message << std::endl;
+            logFile_.flush();
+        }
+    }
+
+public:
+    explicit LoggingDecorator(std::shared_ptr<ICommand> command)
+        : CommandDecorator(command) {}
+
+    static void openLogFile(const std::string& filename) {
+        std::lock_guard<std::mutex> lock(logMutex_);
+        if (logFile_.is_open()) {
+            logFile_.close();
+        }
+        logFile_.open(filename, std::ios::app);
+    }
+
+    static void closeLogFile() {
+        std::lock_guard<std::mutex> lock(logMutex_);
+        if (logFile_.is_open()) {
+            logFile_.close();
+        }
+    }
+
+    void execute() override {
+        log("Выполнение команды: " + getName());
+        try {
+            wrappedCommand_->execute();
+            log("Успешно выполнено: " + getName());
+        } catch (const std::exception& e) {
+            log("Ошибка при выполнении " + getName() + ": " + e.what());
+            throw;
+        }
+    }
+
+    void undo() override {
+        log("Отмена команды: " + getName());
+        try {
+            wrappedCommand_->undo();
+            log("Успешно отменено: " + getName());
+        } catch (const std::exception& e) {
+            log("Ошибка при отмене " + getName() + ": " + e.what());
+            throw;
+        }
+    }
+};
+
+inline std::mutex LoggingDecorator::logMutex_;
+inline std::ofstream LoggingDecorator::logFile_;
+
+// Декоратор валидации
+class ValidationDecorator : public CommandDecorator {
+public:
+    explicit ValidationDecorator(std::shared_ptr<ICommand> command)
+        : CommandDecorator(command) {}
+
+    void execute() override {
+        validateBeforeExecution();
+        wrappedCommand_->execute();
+        validateAfterExecution();
+    }
+
+    void undo() override {
+        if (!canUndo()) {
+            throw std::runtime_error("Команда не может быть отменена: " + getName());
+        }
+        wrappedCommand_->undo();
+    }
+
+protected:
+    virtual void validateBeforeExecution() {}
+
+    virtual void validateAfterExecution() {}
+};
+
+// Декоратор транзакции (обеспечивает атомарность)
+class TransactionDecorator : public CommandDecorator {
+private:
+    std::shared_ptr<domain::IUnitOfWork> unitOfWork_;
+
+public:
+    TransactionDecorator(std::shared_ptr<ICommand> command,
+                         std::shared_ptr<domain::IUnitOfWork> unitOfWork)
+        : CommandDecorator(command), unitOfWork_(unitOfWork) {}
+
+    void execute() override {
+        unitOfWork_->begin();
+        try {
+            wrappedCommand_->execute();
+            unitOfWork_->commit();
+        } catch (...) {
+            unitOfWork_->rollback();
+            throw;
+        }
+    }
+
+    void undo() override {
+        unitOfWork_->begin();
+        try {
+            wrappedCommand_->undo();
+            unitOfWork_->commit();
+        } catch (...) {
+            unitOfWork_->rollback();
+            throw;
+        }
+    }
+};
+
+// Сборщик статистики производительности
+class PerformanceStatistics {
+private:
+    static std::unique_ptr<PerformanceStatistics> instance_;
+    static std::mutex mutex_;
+
+    struct Statistics {
+        size_t count = 0;
+        long long totalTime = 0;
+        long long minTime = LLONG_MAX;
+        long long maxTime = 0;
+
+        void update(long long time) {
+            count++;
+            totalTime += time;
+            minTime = std::min(minTime, time);
+            maxTime = std::max(maxTime, time);
+        }
+
+        double average() const {
+            return count > 0 ? static_cast<double>(totalTime) / count : 0;
+        }
+    };
+
+    std::map<std::string, Statistics> commandStats_;
+    mutable std::mutex statsMutex_;
+
+    PerformanceStatistics() = default;
+
+public:
+    static PerformanceStatistics& getInstance() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!instance_) {
+            instance_ = std::unique_ptr<PerformanceStatistics>(new PerformanceStatistics());
+        }
+        return *instance_;
+    }
+
+    void recordExecution(const std::string& commandName, long long time) {
+        std::lock_guard<std::mutex> lock(statsMutex_);
+        commandStats_[commandName].update(time);
+    }
+
+    std::string generateReport() const {
+        std::lock_guard<std::mutex> lock(statsMutex_);
+        std::stringstream ss;
+
+        ss << "Отчет о статистике производительности\n";
+        ss << "=======================================\n\n";
+
+        for (const auto& [name, stats] : commandStats_) {
+            ss << "Команда: " << name << "\n";
+            ss << "  Выполнений: " << stats.count << "\n";
+            ss << "  Среднее время: " << stats.average() << " мкс\n";
+            ss << "  Мин. время: " << stats.minTime << " мкс\n";
+            ss << "  Макс. время: " << stats.maxTime << " мкс\n";
+            ss << "  Общее время: " << stats.totalTime << " мкс\n\n";
+        }
+
+        return ss.str();
+    }
+
+    void reset() {
+        std::lock_guard<std::mutex> lock(statsMutex_);
+        commandStats_.clear();
+    }
+};
+
+inline std::unique_ptr<PerformanceStatistics> PerformanceStatistics::instance_ = nullptr;
+inline std::mutex PerformanceStatistics::mutex_;
+
+// Фабрика для создания декорированных команд
+class DecoratedCommandFactory {
+public:
+    enum DecorationType {
+        NONE = 0,
+        PERFORMANCE = 1 << 0,
+        LOGGING = 1 << 1,
+        VALIDATION = 1 << 2,
+        TRANSACTION = 1 << 3,
+        ALL = PERFORMANCE | LOGGING | VALIDATION | TRANSACTION
+    };
+
+    static std::shared_ptr<ICommand> decorate(
+        std::shared_ptr<ICommand> command,
+        int decorationFlags = PERFORMANCE | LOGGING) {
+
+        if (decorationFlags & TRANSACTION) {
+            auto unitOfWork = ServiceLocator::get<domain::IUnitOfWork>();
+            command = std::make_shared<TransactionDecorator>(command, unitOfWork);
+        }
+
+        if (decorationFlags & VALIDATION) {
+            command = std::make_shared<ValidationDecorator>(command);
+        }
+
+        if (decorationFlags & PERFORMANCE) {
+            auto perfCommand = std::make_shared<PerformanceMeasuringDecorator>(command);
+            // Подключение к сборщику статистики
+            command = perfCommand;
+        }
+
+        if (decorationFlags & LOGGING) {
+            command = std::make_shared<LoggingDecorator>(command);
+        }
+
+        return command;
+    }
+};
+
+} // namespace financial::application

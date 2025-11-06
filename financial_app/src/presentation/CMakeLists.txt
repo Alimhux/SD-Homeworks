@@ -13,12 +13,6 @@ target_link_libraries(presentation_lib INTERFACE
 
 # Add sources (header-only for now)
 target_sources(presentation_lib INTERFACE
-        # Console UI (to be added)
-        # ${CMAKE_CURRENT_SOURCE_DIR}/console/console_ui.h
-        # ${CMAKE_CURRENT_SOURCE_DIR}/console/menu.h
-
-        # Controllers (to be added)
-        # ${CMAKE_CURRENT_SOURCE_DIR}/controllers/account_controller.h
-        # ${CMAKE_CURRENT_SOURCE_DIR}/controllers/operation_controller.h
-        # ${CMAKE_CURRENT_SOURCE_DIR}/controllers/report_controller.h
+        # Console UI
+        ${CMAKE_CURRENT_SOURCE_DIR}/console/console_ui.h
 )

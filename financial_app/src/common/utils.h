@@ -15,25 +15,25 @@ private:
     static std::random_device rd_;
     static std::mt19937 gen_;
     static std::uniform_int_distribution<> dis_;
-    
+
 public:
     static std::string generate(const std::string& prefix = "") {
         std::stringstream ss;
         if (!prefix.empty()) {
             ss << prefix << "-";
         }
-        
+
         // Generate timestamp part
         auto now = std::chrono::system_clock::now();
         auto time_t = std::chrono::system_clock::to_time_t(now);
         ss << std::hex << time_t;
-        
+
         // Add random part
         ss << "-";
         for (int i = 0; i < 8; ++i) {
             ss << std::hex << dis_(gen_);
         }
-        
+
         return ss.str();
     }
 };
@@ -48,21 +48,21 @@ public:
     static DateTime now() {
         return std::chrono::system_clock::now();
     }
-    
+
     static std::string toString(const DateTime& dt) {
         auto time_t = std::chrono::system_clock::to_time_t(dt);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
         return ss.str();
     }
-    
+
     static DateTime fromString(const std::string& str) {
         std::tm tm = {};
         std::stringstream ss(str);
         ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
         return std::chrono::system_clock::from_time_t(std::mktime(&tm));
     }
-    
+
     static DateTime startOfDay(const DateTime& dt) {
         auto time_t = std::chrono::system_clock::to_time_t(dt);
         std::tm* tm = std::localtime(&time_t);
@@ -71,7 +71,7 @@ public:
         tm->tm_sec = 0;
         return std::chrono::system_clock::from_time_t(std::mktime(tm));
     }
-    
+
     static DateTime endOfDay(const DateTime& dt) {
         auto time_t = std::chrono::system_clock::to_time_t(dt);
         std::tm* tm = std::localtime(&time_t);
@@ -87,17 +87,17 @@ class PerformanceTimer {
 private:
     std::chrono::steady_clock::time_point start_;
     std::string operation_;
-    
+
 public:
-    explicit PerformanceTimer(const std::string& operation) 
+    explicit PerformanceTimer(const std::string& operation)
         : start_(std::chrono::steady_clock::now()), operation_(operation) {}
-    
+
     ~PerformanceTimer() {
-        auto end = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
-        // In production, this would log to a file or monitoring system
+        // auto end = std::chrono::steady_clock::now();
+        // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
+        // // In production, this would log to a file or monitoring system
     }
-    
+
     long long elapsed() const {
         auto end = std::chrono::steady_clock::now();
         return std::chrono::duration_cast<std::chrono::milliseconds>(end - start_).count();

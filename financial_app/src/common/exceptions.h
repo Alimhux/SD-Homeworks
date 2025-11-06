@@ -5,12 +5,14 @@
 
 namespace financial {
 
+    // Базовый класс ошибок для проекта
     class FinancialException : public std::runtime_error {
     public:
         explicit FinancialException(const std::string& message)
             : std::runtime_error(message) {}
     };
 
+    // Ошибки доменной области
     class DomainException : public FinancialException {
         public:
             explicit DomainException(const std::string& message)
@@ -37,7 +39,7 @@ namespace financial {
                               ", Available: " + std::to_string(available)) {}
     };
 
-    // Infrastructure exceptions
+    // Ошибки в инфраструктуре
     class InfrastructureException : public FinancialException {
     public:
         explicit InfrastructureException(const std::string& message)

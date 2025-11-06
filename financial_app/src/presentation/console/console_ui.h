@@ -290,55 +290,46 @@ class ConsoleUI {
   void listAccounts() {
     auto accounts = accountFacade_->getAllAccounts();
     if (accounts.empty()) {
-        std::cout << "Нет созданных счетов.\n";
-        return;
+      std::cout << "Нет созданных счетов.\n";
+      return;
     }
-
     std::cout << "\n--- Список счетов ---\n";
 
-    // Учитываем примерный ID: ACC-690d0a6d-a5d6176 (длина 19 символов)
-    // Добавим немного запаса и установим ширину ID, например, 22
     const int idWidth = 22;
     const int nameWidth = 25;
-    // Для баланса: число с 2 знаками после запятой + пробел + валюта (например, " RUB")
-    // Допустим, макс. длина числа 15 (включая точку и 2 знака), + 4 на " RUB" = 19
-    const int balanceWidth = 19;
+    const int balanceWidth =
+        14;
     const int statusWidth = 8;
 
     // Заголовки
-    std::cout << std::left
-              << std::setw(idWidth) << "ID"
-              << std::setw(nameWidth) << "Название"
-              << std::right // Числа удобно выравнивать по правому краю
+    std::cout << std::left << std::setw(idWidth) << "ID" << std::setw(nameWidth)
+              << "Название"
+              << std::right
               << std::setw(balanceWidth) << "Баланс"
-              << std::left // Статус - снова по левому
+              << std::left
               << std::setw(statusWidth) << " Статус"
               << "\n";
 
     // Разделитель
-    std::cout << std::string(idWidth + nameWidth + balanceWidth + statusWidth, '-')
+    std::cout << std::string(idWidth + nameWidth + balanceWidth + statusWidth,
+                             '-')
               << "\n";
 
     for (const auto& account : accounts) {
-        // Форматирование числа баланса: 2 знака после запятой
-        std::stringstream balanceStream;
-        balanceStream << std::fixed << std::setprecision(2)
-                      << account->getBalance().getAmount()
-                      << " " << account->getCurrency();
-        std::string formattedBalance = balanceStream.str();
+      std::stringstream balanceStream;
+      balanceStream << std::fixed << std::setprecision(2)
+                    << account->getBalance().getAmount() << " "
+                    << account->getCurrency();
+      std::string formattedBalance = balanceStream.str();
 
-        std::cout << std::left
-                  << std::setw(idWidth) << account->getId()
-                  << std::setw(nameWidth) << account->getName() // Название
-                  << std::right // Переключаем выравнивание на правое для чисел
-                  << std::setw(balanceWidth) << formattedBalance // Баланс
-                  << std::left // Переключаем обратно на левое для статуса
-                  << " " // Небольшой отступ перед статусом
-                  << std::setw(statusWidth - 1) // -1 из-за отступа " "
-                  << (account->getIsActive() ? "Активен" : "Неактивен")
-                  << "\n";
+      std::cout << std::left << std::setw(idWidth) << account->getId()
+                << std::setw(nameWidth) << account->getName() << std::right
+                << std::setw(balanceWidth) << formattedBalance << std::left
+                << " "  // Небольшой отступ перед статусом
+                << std::setw(statusWidth - 1)  // -1 из-за отступа " "
+                << (account->getIsActive() ? "Активен" : "Неактивен") << "\n";
     }
-}
+  }
 
   void createCategory() {
     std::cout << "\n--- Создание категории ---\n";
@@ -559,8 +550,7 @@ class ConsoleUI {
               << (type == CategoryType::INCOME ? "доходов" : "расходов")
               << " ---\n";
     for (const auto& cat : categories) {
-      std::cout << cat->getId() << " - " << cat->getName()
-                << "\n";
+      std::cout << cat->getId() << " - " << cat->getName() << "\n";
     }
   }
 

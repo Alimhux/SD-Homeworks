@@ -92,11 +92,7 @@ public:
     explicit PerformanceTimer(const std::string& operation)
         : start_(std::chrono::steady_clock::now()), operation_(operation) {}
 
-    ~PerformanceTimer() {
-        // auto end = std::chrono::steady_clock::now();
-        // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
-        // // In production, this would log to a file or monitoring system
-    }
+    ~PerformanceTimer() {}
 
     long long elapsed() const {
         auto end = std::chrono::steady_clock::now();

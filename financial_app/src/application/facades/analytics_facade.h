@@ -13,7 +13,7 @@ namespace financial::application {
 using namespace financial::domain;
 using namespace financial::infrastructure;
 
-// Report Builder pattern for creating analytics reports
+// Шаблон Builder для создания аналитических отчётов
 class AnalyticsReportBuilder {
 private:
     std::stringstream report_;
@@ -53,55 +53,55 @@ public:
         report_.str("");
         report_.clear();
 
-        // Header
+        // Заголовок
         report_ << "========================================\n";
         report_ << title_ << "\n";
         report_ << "========================================\n\n";
 
-        // Period info
-        report_ << "Period: " << DateTimeUtils::toString(analytics_.period.getStart())
+        // Информация о периоде
+        report_ << "Период: " << DateTimeUtils::toString(analytics_.period.getStart())
                 << " - " << DateTimeUtils::toString(analytics_.period.getEnd()) << "\n\n";
 
-        // Summary
+        // Сводка
         if (includeSummary_) {
             buildSummary();
         }
 
-        // Details
+        // Детали
         if (includeDetails_) {
             buildIncomeDetails();
             buildExpenseDetails();
         }
 
-        // Charts (text-based)
+        // Графики (текстовые)
         if (includeCharts_) {
             buildCharts();
         }
 
-        // Footer
+        // Подвал
         report_ << "\n========================================\n";
-        report_ << "Generated: " << DateTimeUtils::toString(DateTimeUtils::now()) << "\n";
+        report_ << "Сгенерировано: " << DateTimeUtils::toString(DateTimeUtils::now()) << "\n";
 
         return report_.str();
     }
 
 private:
     void buildSummary() {
-        report_ << "SUMMARY\n";
+        report_ << "СВОДКА\n";
         report_ << "-------\n";
         report_ << std::fixed << std::setprecision(2);
-        report_ << "Total Income:  " << std::setw(12) << analytics_.totalIncome.getAmount()
+        report_ << "Общий доход:  " << std::setw(12) << analytics_.totalIncome.getAmount()
                 << " " << analytics_.totalIncome.getCurrency() << "\n";
-        report_ << "Total Expense: " << std::setw(12) << analytics_.totalExpense.getAmount()
+        report_ << "Общий расход: " << std::setw(12) << analytics_.totalExpense.getAmount()
                 << " " << analytics_.totalExpense.getCurrency() << "\n";
-        report_ << "Net Income:    " << std::setw(12) << analytics_.netIncome.getAmount()
+        report_ << "Чистый доход: " << std::setw(12) << analytics_.netIncome.getAmount()
                 << " " << analytics_.netIncome.getCurrency() << "\n\n";
     }
 
     void buildIncomeDetails() {
         if (analytics_.incomeByCategory.empty()) return;
 
-        report_ << "INCOME BY CATEGORY\n";
+        report_ << "ДОХОДЫ ПО КАТЕГОРИЯМ\n";
         report_ << "------------------\n";
 
         for (const auto& cat : analytics_.incomeByCategory) {
@@ -109,7 +109,7 @@ private:
                     << std::right << std::setw(12) << cat.totalAmount.getAmount()
                     << " (" << std::setw(5) << std::setprecision(1)
                     << cat.percentage << "%)"
-                    << " [" << cat.operationCount << " operations]\n";
+                    << " [" << cat.operationCount << " операций]\n";
         }
         report_ << "\n";
     }
@@ -117,7 +117,7 @@ private:
     void buildExpenseDetails() {
         if (analytics_.expenseByCategory.empty()) return;
 
-        report_ << "EXPENSES BY CATEGORY\n";
+        report_ << "РАСХОДЫ ПО КАТЕГОРИЯМ\n";
         report_ << "--------------------\n";
 
         for (const auto& cat : analytics_.expenseByCategory) {
@@ -125,13 +125,13 @@ private:
                     << std::right << std::setw(12) << cat.totalAmount.getAmount()
                     << " (" << std::setw(5) << std::setprecision(1)
                     << cat.percentage << "%)"
-                    << " [" << cat.operationCount << " operations]\n";
+                    << " [" << cat.operationCount << " операций]\n";
         }
         report_ << "\n";
     }
 
     void buildCharts() {
-        report_ << "EXPENSE DISTRIBUTION (Text Chart)\n";
+        report_ << "РАСПРЕДЕЛЕНИЕ РАСХОДОВ (Текстовый график)\n";
         report_ << "---------------------------------\n";
 
         const int maxWidth = 40;
@@ -148,7 +148,7 @@ private:
     }
 };
 
-// Analytics Facade
+// Фасад аналитики
 class AnalyticsFacade {
 private:
     std::shared_ptr<AnalyticsService> analyticsService_;
@@ -158,24 +158,16 @@ private:
     std::shared_ptr<ICategoryRepository> categoryRepo_;
 
 public:
-    // Небольшое пояснение: в этом классе, для избежания
-    // цилической зависимости мне пришлось сделать
-    // ленивую инициализацию первых двух полей. Другого
-    // решения я к сожалению не нашёл
     AnalyticsFacade() {
-        // analyticsService_ = ServiceLocator::get<AnalyticsService>();
-        // reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
+        analyticsService_ = ServiceLocator::get<AnalyticsService>();
+        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
         operationRepo_ = ServiceLocator::get<IOperationRepository>();
         accountRepo_ = ServiceLocator::get<IBankAccountRepository>();
         categoryRepo_ = ServiceLocator::get<ICategoryRepository>();
     }
 
-    // Period analytics
+    // Аналитика по периоду
     PeriodAnalytics getAnalytics(const DateRange& period) {
-        if (!analyticsService_) {
-          analyticsService_ = ServiceLocator::get<AnalyticsService>();
-
-        }
         return analyticsService_->calculatePeriodAnalytics(period);
     }
 
@@ -195,42 +187,27 @@ public:
         return getAnalytics(DateRange(start, end));
     }
 
-    // Top categories
+    // Топ категорий
     std::vector<CategoryAnalytics> getTopIncomeCategories(size_t limit = 5) {
-      if (!analyticsService_) {
-        analyticsService_ = ServiceLocator::get<AnalyticsService>();
-      }
         return analyticsService_->getTopCategories(
             DateRange::thisMonth(), OperationType::INCOME, limit);
     }
 
     std::vector<CategoryAnalytics> getTopExpenseCategories(size_t limit = 5) {
-      if (!analyticsService_) {
-        analyticsService_ = ServiceLocator::get<AnalyticsService>();
-      }
         return analyticsService_->getTopCategories(
             DateRange::thisMonth(), OperationType::EXPENSE, limit);
     }
 
-    // Balance reconciliation
+    // Согласование балансов
     AccountBalance checkBalance(const Id& accountId) {
-      if (reconciliationService_) {
-        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
-      }
         return reconciliationService_->checkAccountBalance(accountId);
     }
 
     std::vector<AccountBalance> checkAllBalances() {
-      if (reconciliationService_) {
-        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
-      }
         return reconciliationService_->checkAllBalances();
     }
 
     void recalculateBalance(const Id& accountId, bool autoFix = false) {
-      if (reconciliationService_) {
-        reconciliationService_ = ServiceLocator::get<BalanceReconciliationService>();
-      }
         reconciliationService_->recalculateBalance(accountId, autoFix);
     }
 
@@ -243,14 +220,12 @@ public:
         }
     }
 
-    // Report generation using Builder
+    // Генерация отчётов с использованием Builder
     std::string generateMonthlyReport() {
-      std::cout << "OK" << '\n';
-
         auto analytics = getMonthAnalytics();
-        std::cout << "OK" << '\n';
+
         return AnalyticsReportBuilder()
-            .setTitle("Monthly Financial Report")
+            .setTitle("Ежемесячный финансовый отчёт")
             .setAnalytics(analytics)
             .includeSummary(true)
             .includeDetails(true)
@@ -262,7 +237,7 @@ public:
         auto analytics = getYearAnalytics();
 
         return AnalyticsReportBuilder()
-            .setTitle("Yearly Financial Report")
+            .setTitle("Годовой финансовый отчёт")
             .setAnalytics(analytics)
             .includeSummary(true)
             .includeDetails(true)
@@ -282,7 +257,7 @@ public:
             .build();
     }
 
-    // Data export
+    // Экспорт данных
     void exportToCSV(const std::string& filename) {
         auto exporter = ExporterFactory::create("csv");
         exporter->exportToFile(
@@ -303,24 +278,15 @@ public:
         );
     }
 
-    // Data import
-    void importFromCSV(const std::string& filename) {
-        auto importer = ImporterFactory::create("csv");
-        auto data = importer->import(filename);
-
-        // Process imported data
-        processImportedData(data);
-    }
-
     void importFromJSON(const std::string& filename) {
         auto importer = ImporterFactory::create("json");
         auto data = importer->import(filename);
 
-        // Process imported data
+        // Обработка импортированных данных
         processImportedData(data);
     }
 
-    // Statistics
+    // Статистика
     Money calculateAverageMonthlyIncome() {
         auto yearAnalytics = getYearAnalytics();
         if (yearAnalytics.totalIncome.isZero()) {
@@ -352,7 +318,7 @@ private:
     void processImportedData(const ImportData& data) {
         auto factory = ServiceLocator::get<IEntityFactory>();
 
-        // Import accounts
+        // Импорт счетов
         for (const auto& accountDTO : data.accounts) {
             auto account = factory->createBankAccount(
                 accountDTO.name,
@@ -362,7 +328,7 @@ private:
             accountRepo_->save(account);
         }
 
-        // Import categories
+        // Импорт категорий
         for (const auto& categoryDTO : data.categories) {
             auto type = stringToCategoryType(categoryDTO.type);
             auto category = factory->createCategory(
@@ -373,7 +339,7 @@ private:
             categoryRepo_->save(category);
         }
 
-        // Import operations
+        // Импорт операций
         for (const auto& operationDTO : data.operations) {
             auto type = stringToOperationType(operationDTO.type);
             auto operation = factory->createOperation(

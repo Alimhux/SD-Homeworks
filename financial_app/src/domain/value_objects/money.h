@@ -9,7 +9,6 @@ namespace financial::domain {
 
 // Объект денежной стоимости
 class Money : public ValueObject {
- private:
   Decimal amount_;
   std::string currency_;
 

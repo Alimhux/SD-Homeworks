@@ -163,7 +163,7 @@ class AddOperationCommand : public BaseCommand {
   AddOperationCommand(OperationType type, const Id& bankAccountId,
                       const Money& amount, const Id& categoryId,
                       const std::string& description = "")
-      : BaseCommand("ДобавитьОперацию"),
+      : BaseCommand("Добавить Операцию"),
         type_(type),
         bankAccountId_(bankAccountId),
         amount_(amount),
@@ -177,7 +177,6 @@ class AddOperationCommand : public BaseCommand {
 
  protected:
   void doExecute() override {
-    // Сохранить предыдущий баланс для отмены
     auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
     auto accountOpt = accountRepo->findById(bankAccountId_);
     if (!accountOpt) {
@@ -186,7 +185,6 @@ class AddOperationCommand : public BaseCommand {
     account_ = *accountOpt;
     previousBalance_ = account_->getBalance();
 
-    // Создать и обработать операцию
     createdOperation_ = factory_->createOperation(
         type_, bankAccountId_, amount_, categoryId_, description_);
     processingService_->processOperation(createdOperation_);
@@ -238,8 +236,9 @@ class TransferCommand : public BaseCommand {
  protected:
   void doExecute() override {
     auto accountRepo = ServiceLocator::get<IBankAccountRepository>();
+    auto factory = ServiceLocator::get<IEntityFactory>();
+    auto operationRepo = ServiceLocator::get<IOperationRepository>();
 
-    // Получить счета
     auto fromAccountOpt = accountRepo->findById(fromAccountId_);
     auto toAccountOpt = accountRepo->findById(toAccountId_);
 
@@ -256,8 +255,32 @@ class TransferCommand : public BaseCommand {
     accountRepo->update(fromAccount);
     accountRepo->update(toAccount);
 
-    auto factory = ServiceLocator::get<IEntityFactory>();
-    auto operationRepo = ServiceLocator::get<IOperationRepository>();
+    auto categoryRepo = ServiceLocator::get<ICategoryRepository>();
+    auto transferCategory = categoryRepo->findByName("Перевод");
+    if (!transferCategory) {
+      transferCategory = factory->createCategory(CategoryType::EXPENSE, "Перевод", "Переводы между счетами");
+      categoryRepo->save(*transferCategory);
+    }
+
+    // Операция списания
+    withdrawOperation_ = factory->createOperation(
+        OperationType::EXPENSE,
+        fromAccountId_,
+        amount_,
+        (*transferCategory)->getId(),
+        description_
+    );
+    operationRepo->save(withdrawOperation_);
+
+    // Операция зачисления
+    depositOperation_ = factory->createOperation(
+        OperationType::INCOME,
+        toAccountId_,
+        amount_,
+        (*transferCategory)->getId(),
+        description_
+    );
+    operationRepo->save(depositOperation_);
   }
 
   void doUndo() override {
@@ -275,58 +298,6 @@ class TransferCommand : public BaseCommand {
       accountRepo->update(fromAccount);
       accountRepo->update(toAccount);
     }
-  }
-};
-
-// Команда пакета для выполнения нескольких команд
-class BatchCommand : public BaseCommand {
- private:
-  std::vector<std::shared_ptr<ICommand>> commands_;
-  std::vector<std::shared_ptr<ICommand>> executedCommands_;
-
- public:
-  explicit BatchCommand(const std::string& name = "Пакет")
-      : BaseCommand(name) {}
-
-  void addCommand(std::shared_ptr<ICommand> command) {
-    if (executed_) {
-      throw std::runtime_error("Невозможно добавить команды в выполненный пакет");
-    }
-    commands_.push_back(command);
-  }
-
-  bool canUndo() const override {
-    for (const auto& cmd : commands_) {
-      if (!cmd->canUndo()) return false;
-    }
-    return true;
-  }
-
- protected:
-  void doExecute() override {
-    for (auto& cmd : commands_) {
-      try {
-        cmd->execute();
-        executedCommands_.push_back(cmd);
-      } catch (...) {
-        for (auto it = executedCommands_.rbegin();
-             it != executedCommands_.rend(); ++it) {
-          if ((*it)->canUndo()) {
-            (*it)->undo();
-          }
-        }
-        executedCommands_.clear();
-        throw;
-      }
-    }
-  }
-
-  void doUndo() override {
-    for (auto it = executedCommands_.rbegin(); it != executedCommands_.rend();
-         ++it) {
-      (*it)->undo();
-    }
-    executedCommands_.clear();
   }
 };
 

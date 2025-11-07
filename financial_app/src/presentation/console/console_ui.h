@@ -9,13 +9,12 @@
 #include "application/facades/account_facade.h"
 #include "application/facades/analytics_facade.h"
 #include "application/facades/operation_facade.h"
-#include "infrastructure/di/di_container.h"
 
 namespace financial::presentation {
 
 using namespace financial::application;
 
-// Console UI class following Controller pattern
+// Основной класс для взаимодействия с пользователем
 class ConsoleUI {
  private:
   std::shared_ptr<AccountFacade> accountFacade_;
@@ -25,8 +24,18 @@ class ConsoleUI {
 
   bool running_ = true;
 
+  std::string time_point_to_string(const std::chrono::system_clock::time_point& tp) {
+    std::time_t t = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm = *std::localtime(&t);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
+  }
+
  public:
   ConsoleUI() {
+    // Инициализация фасадов
     accountFacade_ = std::make_shared<AccountFacade>();
     operationFacade_ = std::make_shared<OperationFacade>();
     categoryFacade_ = std::make_shared<CategoryFacade>();
@@ -50,16 +59,22 @@ class ConsoleUI {
         case 3:
           operationMenu();
           break;
-        // case 0: analyticsMenu(); break;
-        // case 0: importExportMenu(); break;
-        // case 0: runQuickDemo(); break;
         case 4:
-          demonstratePatterns();
+          analyticsMenu();
           break;
         case 5:
-          displayHelp();
+          importExportMenu();
           break;
         case 6:
+          demonstratePatterns();
+          break;
+        case 7:
+          runQuickDemo();
+          break;
+        case 8:
+          displayHelp();
+          break;
+        case 9:
           running_ = false;
           break;
       }
@@ -81,12 +96,12 @@ class ConsoleUI {
     std::cout << "1. Управление счетами\n";
     std::cout << "2. Управление категориями\n";
     std::cout << "3. Управление операциями\n";
-    // std::cout << "4. Аналитика и отчеты\n";
-    // std::cout << "5. Импорт/Экспорт данных\n";
-    // std::cout << "4. Быстрая демонстрация\n";
-    std::cout << "4. Демонстрация паттернов\n";
-    std::cout << "5. Справка\n";
-    std::cout << "6. Выход\n";
+    std::cout << "4. Аналитика и отчеты\n";
+    std::cout << "5. Импорт/Экспорт данных\n";
+    std::cout << "6. Демонстрация паттернов\n";
+    std::cout << "7. Быстрая демонстрация\n";
+    std::cout << "8. Справка\n";
+    std::cout << "9. Выход\n";
   }
 
   void accountMenu() {
@@ -210,8 +225,7 @@ class ConsoleUI {
       std::cout << "3. Топ категорий доходов\n";
       std::cout << "4. Топ категорий расходов\n";
       std::cout << "5. Проверить балансы\n";
-      std::cout << "6. Статистика производительности\n";
-      std::cout << "7. Назад\n";
+      std::cout << "6. Назад\n";
 
       int choice = getUserChoice(1, 7);
 
@@ -232,9 +246,6 @@ class ConsoleUI {
           checkBalances();
           break;
         case 6:
-          showPerformanceStats();
-          break;
-        case 7:
           inMenu = false;
           break;
       }
@@ -247,9 +258,8 @@ class ConsoleUI {
       std::cout << "\n=== ИМПОРТ/ЭКСПОРТ ДАННЫХ ===\n";
       std::cout << "1. Экспорт в CSV\n";
       std::cout << "2. Экспорт в JSON\n";
-      std::cout << "3. Импорт из CSV\n";
-      std::cout << "4. Импорт из JSON\n";
-      std::cout << "5. Назад\n";
+      std::cout << "3. Импорт из JSON\n";
+      std::cout << "4. Назад\n";
 
       int choice = getUserChoice(1, 5);
 
@@ -261,19 +271,16 @@ class ConsoleUI {
           exportToJSON();
           break;
         case 3:
-          importFromCSV();
-          break;
-        case 4:
           importFromJSON();
           break;
-        case 5:
+        case 4:
           inMenu = false;
           break;
       }
     }
   }
 
-  // Implementation of menu actions
+  // Создание счёта
   void createAccount() {
     std::cout << "\n--- Создание счета ---\n";
     std::string name = getUserInput("Введите название счета: ");
@@ -287,48 +294,94 @@ class ConsoleUI {
     }
   }
 
+  // Вспомогательную функцию для подсчета визуальной ширины
+  size_t visualLength(const std::string& str) {
+    size_t len = 0;
+    for (size_t i = 0; i < str.length();) {
+      unsigned char c = str[i];
+      if (c < 0x80) {
+        len++;
+        i++;
+      } else if ((c & 0xE0) == 0xC0) {
+        len++;
+        i += 2;
+      } else if ((c & 0xF0) == 0xE0) {
+        len++;
+        i += 3;
+      } else {
+        len++;
+        i += 4;
+      }
+    }
+    return len;
+  }
+
+  // Функция для добавления пробелов до нужной ширины
+  std::string padRight(const std::string& str, size_t width) {
+    size_t visLen = visualLength(str);
+    if (visLen >= width) return str;
+    return str + std::string(width - visLen, ' ');
+  }
+
   void listAccounts() {
     auto accounts = accountFacade_->getAllAccounts();
+
     if (accounts.empty()) {
       std::cout << "Нет созданных счетов.\n";
       return;
     }
-    std::cout << "\n--- Список счетов ---\n";
 
-    const int idWidth = 22;
-    const int nameWidth = 12;
-    const int balanceWidth =
-        15;
-    const int statusWidth = 8;
-
-    // Заголовки
-    std::cout << std::left << std::setw(idWidth) << "ID" << std::setw(nameWidth)
-              << " Название    "
-              << std::right
-              << std::setw(balanceWidth) << "     Баланс" << "        "
-              << std::left
-              << std::setw(statusWidth) << "  Статус"
-              << "\n";
-
-    // Разделитель
-    std::cout << std::string(idWidth + nameWidth + balanceWidth + statusWidth,
-                             '-')
-              << "\n";
+    std::cout << "\n┌──────────────────────────┬──────────────────────────┬────"
+                 "──────────────┬────────────┐\n";
+    std::cout << "│ ID                       │ Название                 │ "
+                 "Баланс           │ Статус     │\n";
+    std::cout << "├──────────────────────────┼──────────────────────────┼──────"
+                 "────────────┼────────────┤\n";
 
     for (const auto& account : accounts) {
-      std::stringstream balanceStream;
-      balanceStream << std::fixed << std::setprecision(2)
-                    << account->getBalance().getAmount() << " "
-                    << account->getCurrency();
-      std::string formattedBalance = balanceStream.str();
+      std::string balance = std::to_string(account->getBalance().getAmount());
+      size_t dotPos = balance.find('.');
+      if (dotPos != std::string::npos && dotPos + 3 < balance.length()) {
+        balance = balance.substr(0, dotPos + 3);
+      }
+      balance += " " + account->getCurrency();
 
-      std::cout << std::left << std::setw(idWidth) << account->getId() << "    "
-                << std::setw(nameWidth) << account->getName()
-                << std::setw(balanceWidth) << formattedBalance
-                << " "  // Небольшой отступ перед статусом
-                << std::setw(statusWidth - 1)  // -1 из-за отступа " "
-                << (account->getIsActive() ? "Активен" : "Неактивен") << "\n";
+      std::string name = account->getName();
+      if (visualLength(name) > 24) {
+        // Обрезаем с учетом визуальной длины
+        size_t bytes = 0;
+        size_t chars = 0;
+        while (bytes < name.length() && chars < 21) {
+          unsigned char c = name[bytes];
+          if (c < 0x80)
+            bytes++;
+          else if ((c & 0xE0) == 0xC0)
+            bytes += 2;
+          else if ((c & 0xF0) == 0xE0)
+            bytes += 3;
+          else
+            bytes += 4;
+          chars++;
+        }
+        name = name.substr(0, bytes) + "...";
+      }
+
+      std::cout << "│ " << padRight(account->getId().substr(0, 24), 24)
+                << " │ ";
+      std::cout << padRight(name, 24) << " │ ";
+
+      // Баланс - выравниваем по правому краю
+      std::string balancePadded =
+          std::string(16 - balance.length(), ' ') + balance;
+      std::cout << balancePadded << " │ ";
+
+      std::cout << padRight(account->getIsActive() ? "Активен" : "Неактивен",
+                            10)
+                << " │\n";
     }
+
+    std::cout << "└──────────────────────────┴──────────────────────────┴──────"
+                 "────────────┴────────────┘\n";
   }
 
   void createCategory() {
@@ -550,14 +603,13 @@ class ConsoleUI {
               << (type == CategoryType::INCOME ? "доходов" : "расходов")
               << " ---\n";
     for (const auto& cat : categories) {
-      std::cout << cat->getId() << " - " << cat->getName() << "\n";
+      std::cout << cat->getId() << " - " << cat->getName()
+                << "\n";
     }
   }
 
   void listCategories() {
-    // std::cout << "\n--- Категории доходов ---\n";
     listCategories(CategoryType::INCOME);
-    // std::cout << "\n--- Категории расходов ---\n";
     listCategories(CategoryType::EXPENSE);
   }
 
@@ -628,12 +680,39 @@ class ConsoleUI {
 
   void listOperations() {
     listAccounts();
-    std::string accountId =
-        getUserInput("\nВведите ID счета (пусто для всех): ");
+    std::string accountId = getUserInput("\nВведите ID счета (пусто для всех): ");
 
-    // Implementation simplified
-    std::cout << "Список операций...\n";
+    std::vector<std::shared_ptr<Operation>> operations;
+
+    if (accountId.empty()) {
+      // Получить все операции
+      std::cout << "Нет такого аккаунта" << '\n'; // нужно добавить этот метод
+    } else {
+      // Операции конкретного счета
+      operations = operationFacade_->getAccountOperations(accountId);
+    }
+
+    if (operations.empty()) {
+      std::cout << "\nОперации не найдены.\n";
+      return;
+    }
+
+    std::cout << "\n=== СПИСОК ОПЕРАЦИЙ ===\n";
+    std::cout << "Всего операций: " << operations.size() << "\n\n";
+
+    for (const auto& op : operations) {
+      std::cout << "─────────────────────────────────────\n";
+      std::cout << "ID:          " << op->getId() << "\n";
+      std::cout << "Тип:         " << (op->getType() == OperationType::INCOME ? "Доход" : "Расход") << "\n";
+      std::cout << "Сумма:       " << op->getAmount().getAmount() << " " << op->getAmount().getCurrency() << "\n";
+      std::cout << "Дата:        " << time_point_to_string(op->getDate()) << "\n";
+      std::cout << "Описание:    " << op->getDescription() << "\n";
+      std::cout << "Категория:   " << op->getCategoryId() << "\n";
+    }
+    std::cout << "─────────────────────────────────────\n";
   }
+
+
 
   void showTodayOperations() {
     auto operations = operationFacade_->getTodayOperations();
@@ -716,18 +795,8 @@ class ConsoleUI {
     }
   }
 
-  void importFromCSV() {
-    std::string filename = getUserInput("Имя файла CSV: ");
-    try {
-      analyticsFacade_->importFromCSV(filename);
-      std::cout << "✓ Данные импортированы из " << filename << "\n";
-    } catch (const std::exception& e) {
-      std::cout << "✗ Ошибка: " << e.what() << "\n";
-    }
-  }
-
   void importFromJSON() {
-    std::string filename = getUserInput("Имя файла JSON: ");
+    std::string filename = getUserInput("Имя файла JSON (должен находиться в cmake-build-debug): ");
     try {
       analyticsFacade_->importFromJSON(filename);
       std::cout << "✓ Данные импортированы из " << filename << "\n";
@@ -743,16 +812,16 @@ class ConsoleUI {
     std::cout << "Основные возможности:\n";
     std::cout << "• Управление счетами и категориями\n";
     std::cout << "• Учет доходов и расходов\n";
-    // std::cout << "• Аналитика и отчетность\n";
-    // std::cout << "• Импорт/экспорт данных\n";
+    std::cout << "• Аналитика и отчетность\n";
+    std::cout << "• Импорт/экспорт данных\n";
     std::cout << "• Поддержка отмены операций\n";
     std::cout << "\nИспользуйте числовые команды для навигации.\n";
   }
 
   void displayGoodbye() {
     std::cout << "\n╔════════════════════════════════════════════════════╗\n";
-    std::cout << "║         Спасибо за использование системы!         ║\n";
-    std::cout << "║                    До свидания!                   ║\n";
+    std::cout << "║         Спасибо за использование системы!          ║\n";
+    std::cout << "║                    До свидания!                    ║\n";
     std::cout << "╚════════════════════════════════════════════════════╝\n\n";
   }
 };

@@ -241,9 +241,6 @@ public:
         std::lock_guard<std::mutex> lock(statsMutex_);
         std::stringstream ss;
 
-        ss << "Отчет о статистике производительности\n";
-        ss << "=======================================\n\n";
-
         for (const auto& [name, stats] : commandStats_) {
             ss << "Команда: " << name << "\n";
             ss << "  Выполнений: " << stats.count << "\n";

@@ -7,8 +7,6 @@
 #include <mutex>
 #include <stdexcept>
 #include <any>
-#include <set>
-#include <iostream>
 #include "domain/repositories/repository_interfaces.h"
 #include "domain/factories/entity_factory.h"
 #include "domain/services/domain_services.h"
@@ -17,27 +15,26 @@
 
 namespace financial::infrastructure {
 
-// DI-контейнер с защитой от циклических зависимостей
+// Упрощённый DI-контейнер
 class DIContainer {
 private:
+    // Экземпляр Singleton
     static std::unique_ptr<DIContainer> instance_;
     static std::mutex mutex_;
 
-    // Реестр служб
+    // Реестр сервисов
     std::unordered_map<std::type_index, std::any> services_;
     std::unordered_map<std::type_index, std::function<std::any()>> factories_;
-    mutable std::mutex servicesMutex_;
-
-    // Для обнаружения циклических зависимостей
-    std::set<std::type_index> resolvingTypes_;
-    mutable std::mutex resolvingMutex_;
+    mutable std::recursive_mutex servicesMutex_;
 
     DIContainer() = default;
 
 public:
+    // Удаляем конструктор копирования и оператор присваивания
     DIContainer(const DIContainer&) = delete;
     DIContainer& operator=(const DIContainer&) = delete;
 
+    // Получить экземпляр singleton
     static DIContainer& getInstance() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!instance_) {
@@ -46,103 +43,93 @@ public:
         return *instance_;
     }
 
+    // Зарегистрировать singleton-сервис
     template<typename Interface, typename Implementation>
     void registerSingleton(std::shared_ptr<Implementation> implementation) {
-        std::lock_guard<std::mutex> lock(servicesMutex_);
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
         services_[std::type_index(typeid(Interface))] =
             std::static_pointer_cast<Interface>(implementation);
     }
 
+    // Зарегистрировать singleton-сервис через фабрику
     template<typename Interface>
     void registerSingleton(std::function<std::shared_ptr<Interface>()> factory) {
-        std::lock_guard<std::mutex> lock(servicesMutex_);
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
         auto service = factory();
         services_[std::type_index(typeid(Interface))] = service;
     }
 
+    // Зарегистрировать transient-сервис (новый экземпляр при каждом вызове)
     template<typename Interface>
     void registerTransient(std::function<std::shared_ptr<Interface>()> factory) {
-        std::lock_guard<std::mutex> lock(servicesMutex_);
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
         factories_[std::type_index(typeid(Interface))] =
             [factory]() -> std::any { return factory(); };
     }
 
+    // Зарезолвить сервис
     template<typename Interface>
     std::shared_ptr<Interface> resolve() {
-        std::type_index typeIdx = std::type_index(typeid(Interface));
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
 
-        // Проверяем циклическую зависимость
-        {
-            std::lock_guard<std::mutex> lock(resolvingMutex_);
-            if (resolvingTypes_.find(typeIdx) != resolvingTypes_.end()) {
-                throw std::runtime_error("Циклическая зависимость при разрешении: " +
-                    std::string(typeid(Interface).name()));
+        // Сначала проверяем на наличие singleton
+        auto it = services_.find(std::type_index(typeid(Interface)));
+        if (it != services_.end()) {
+            try {
+                return std::any_cast<std::shared_ptr<Interface>>(it->second);
+            } catch (const std::bad_any_cast& e) {
+                throw std::runtime_error("Не удалось разрешить сервис: несоответствие типов");
             }
-            resolvingTypes_.insert(typeIdx);
         }
 
-        std::lock_guard<std::mutex> lock(servicesMutex_);
-        std::shared_ptr<Interface> result;
-
-        try {
-            auto it = services_.find(typeIdx);
-            if (it != services_.end()) {
-                result = std::any_cast<std::shared_ptr<Interface>>(it->second);
-            } else {
-                auto factoryIt = factories_.find(typeIdx);
-                if (factoryIt != factories_.end()) {
-                    result = std::any_cast<std::shared_ptr<Interface>>(factoryIt->second());
-                } else {
-                    throw std::runtime_error("Служба не зарегистрирована: " +
-                        std::string(typeid(Interface).name()));
-                }
+        // Проверяем фабрику
+        auto factoryIt = factories_.find(std::type_index(typeid(Interface)));
+        if (factoryIt != factories_.end()) {
+            try {
+                return std::any_cast<std::shared_ptr<Interface>>(factoryIt->second());
+            } catch (const std::bad_any_cast& e) {
+                throw std::runtime_error("Не удалось разрешить сервис из фабрики: несоответствие типов");
             }
-        } catch (const std::bad_any_cast& e) {
-            {
-                std::lock_guard<std::mutex> lock(resolvingMutex_);
-                resolvingTypes_.erase(typeIdx);
-            }
-            throw std::runtime_error("Не удалось разрешить зависимость: несоответствие типов");
         }
 
-        // Удаляем из стека разрешения
-        {
-            std::lock_guard<std::mutex> lock(resolvingMutex_);
-            resolvingTypes_.erase(typeIdx);
-        }
-
-        return result;
+        throw std::runtime_error("Сервис не зарегистрирован: " +
+            std::string(typeid(Interface).name()));
     }
 
+    // Проверить, зарегистрирован ли сервис
     template<typename Interface>
     bool isRegistered() const {
-        std::lock_guard<std::mutex> lock(servicesMutex_);
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
         auto typeIdx = std::type_index(typeid(Interface));
         return services_.count(typeIdx) > 0 || factories_.count(typeIdx) > 0;
     }
 
+    // Очистить все регистрации (полезно для тестирования)
     void clear() {
-        std::lock_guard<std::mutex> lock(servicesMutex_);
+        std::lock_guard<std::recursive_mutex> lock(servicesMutex_);
         services_.clear();
         factories_.clear();
     }
 
+    // Сбросить экземпляр singleton (полезно для тестирования)
     static void reset() {
         std::lock_guard<std::mutex> lock(mutex_);
         instance_.reset();
     }
 };
 
+// Определения статических членов
 inline std::unique_ptr<DIContainer> DIContainer::instance_ = nullptr;
 inline std::mutex DIContainer::mutex_;
 
+// Конфигуратор сервисов для упрощённой настройки DI
 class ServiceConfigurator {
 public:
     static void configureServices(bool useCaching = true) {
         auto& container = DIContainer::getInstance();
+
         container.clear();
 
-        // 1. Сначала регистрируем фабрики и UnitOfWork (базовые зависимости)
         container.registerSingleton<domain::IEntityFactory>(
             []() { return std::make_shared<domain::EntityFactory>(); });
 
@@ -151,7 +138,6 @@ public:
 
         auto unitOfWork = container.resolve<domain::IUnitOfWork>();
 
-        // 2. Затем регистрируем репозитории (зависят от UnitOfWork, но не от сервисов)
         container.registerSingleton<domain::IBankAccountRepository>(
             [unitOfWork, useCaching]() -> std::shared_ptr<domain::IBankAccountRepository> {
                 auto repo = std::make_shared<InMemoryBankAccountRepository>();
@@ -172,7 +158,7 @@ public:
                 return std::make_shared<InMemoryOperationRepository>();
             });
 
-        // 3. И только потом регистрируем сервисы (зависят от репозиториев)
+        // Зарегистрировать доменные сервисы
         container.registerTransient<domain::AnalyticsService>(
             []() {
                 auto& c = DIContainer::getInstance();
@@ -202,11 +188,13 @@ public:
             });
     }
 
+    // Конфигурация сервисов для тестов (с моками или тестовыми двойниками)
     static void configureTestServices() {
         configureServices(false);
     }
 };
 
+// Обёртка паттерна Service Locator для удобного доступа
 class ServiceLocator {
 public:
     template<typename T>

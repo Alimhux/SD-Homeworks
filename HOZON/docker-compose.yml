@@ -1,0 +1,167 @@
+services:
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: hozon-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hozon-network
+
+  # Orders Database
+  orders-db:
+    image: postgres:15
+    container_name: hozon-orders-db
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+    volumes:
+      - orders-db-data:/var/lib/postgresql/data
+      - ./orders-service/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hozon-network
+
+  # Payments Database
+  payments-db:
+    image: postgres:15
+    container_name: hozon-payments-db
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: payments
+      POSTGRES_PASSWORD: payments
+    volumes:
+      - payments-db-data:/var/lib/postgresql/data
+      - ./payments-service/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payments -d payments"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hozon-network
+
+  # Orders Service
+  orders-service:
+    build:
+      context: .
+      dockerfile: orders-service/Dockerfile
+    container_name: hozon-orders-service
+    environment:
+      HTTP_PORT: "8081"
+      DB_HOST: orders-db
+      DB_PORT: "5432"
+      DB_NAME: orders
+      DB_USER: orders
+      DB_PASSWORD: orders
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    networks:
+      - hozon-network
+    restart: unless-stopped
+
+  # Payments Service
+  payments-service:
+    build:
+      context: .
+      dockerfile: payments-service/Dockerfile
+    container_name: hozon-payments-service
+    environment:
+      HTTP_PORT: "8082"
+      DB_HOST: payments-db
+      DB_PORT: "5432"
+      DB_NAME: payments
+      DB_USER: payments
+      DB_PASSWORD: payments
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      payments-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    networks:
+      - hozon-network
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: hozon-api-gateway
+    environment:
+      HTTP_PORT: "8080"
+      ORDERS_SERVICE_URL: http://orders-service:8081
+      PAYMENTS_SERVICE_URL: http://payments-service:8082
+    depends_on:
+      - orders-service
+      - payments-service
+    ports:
+      - "8080:8080"
+    networks:
+      - hozon-network
+    restart: unless-stopped
+
+  # Swagger UI
+  swagger-ui:
+    build:
+      context: ./swagger
+      dockerfile: Dockerfile
+    container_name: hozon-swagger-ui
+    ports:
+      - "8888:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - hozon-network
+    restart: unless-stopped
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hozon-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - hozon-network
+    restart: unless-stopped
+
+networks:
+  hozon-network:
+    driver: bridge
+
+volumes:
+  orders-db-data:
+  payments-db-data:
